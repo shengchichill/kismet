@@ -1,4 +1,5 @@
 import time
+from collections import deque
 from contextlib import contextmanager
 from typing import Optional
 
@@ -42,17 +43,49 @@ EXORCISM_ART = f"""[{RED}]
   「雖違宇宙法則，誠意已達，特此驅魔。」
 [/]"""
 
+_MINING_ALTAR = (
+    f"\n[{PURPLE}]  ╔════════════ ⚒ 逆天改運中 ⚒ ════════════╗[/]\n"
+    f"[{GOLD}]  ║  正在燃燒 Token 祭天，請耐心等候...      ║[/]\n"
+    f"[{PURPLE}]  ╚════════════════════════════════════════╝[/]\n\n"
+    f"[{MUTED}]           ~   ~  ~    ~  ~[/]\n"
+    f"[{GOLD}]           | | | | | | | | | |[/]\n"
+    f"[{GOLD}]          _|_|_|_|_|_|_|_|_|__[/]\n"
+    f"[{GOLD}]         |  🔥 焚燒 Token 祭壇 🔥  |[/]\n"
+    f"[{GOLD}]         |________________________|[/]\n"
+)
+
 
 def _tarot_card_row(cards: list[tuple[str, str, str]]) -> str:
-    tops = "".join(f"┌─────┐  " for _ in cards)
+    tops = "".join("┌─────┐  " for _ in cards)
     mids = "".join(f"│[{c}] {icon[:5].ljust(5)} [/{c}]│  " for _, icon, c in cards)
-    bots = "".join(f"└─────┘  " for _ in cards)
+    bots = "".join("└─────┘  " for _ in cards)
     return f"  {tops}\n  {mids}\n  {bots}"
+
+
+def _highlight_hash(hash_str: str, lucky_match: Optional[str]) -> str:
+    """Return Rich markup with the lucky substring highlighted in bold green."""
+    if not lucky_match:
+        return f"[{CYAN}]{hash_str}[/]"
+    idx = hash_str.lower().find(lucky_match.lower())
+    if idx < 0:
+        return f"[{CYAN}]{hash_str}[/]"
+    before = hash_str[:idx]
+    match = hash_str[idx : idx + len(lucky_match)]
+    after = hash_str[idx + len(lucky_match) :]
+    result = ""
+    if before:
+        result += f"[{CYAN}]{before}[/]"
+    result += f"[{GREEN}][bold]{match}[/bold][/]"
+    if after:
+        result += f"[{CYAN}]{after}[/]"
+    return result
 
 
 class RendererTool:
     def __init__(self):
         self.console = Console()
+        self._mining_live: Optional[Live] = None
+        self._mining_log: deque = deque(maxlen=10)
 
     def show_banner(self) -> None:
         self.console.print()
@@ -62,7 +95,6 @@ class RendererTool:
 
     def show_divination_animation(self, hash_str: str) -> None:
         bad_chars = any(s in hash_str for s in ["404", "dead", "bad", "f00d"])
-        face_down = [("░░░░░", "░░░░░", PURPLE)] * 3
 
         with Live(console=self.console, refresh_per_second=4) as live:
             # Frame A: cards dealing
@@ -72,7 +104,7 @@ class RendererTool:
                 + _tarot_card_row(cards_a)
                 + f"\n\n[{MUTED}]  hash: [{CYAN}]{hash_str}[/]   感應中 ⟳[/]"
             )
-            live.update(Panel(text, border_style=PURPLE, padding=(0, 1)))
+            live.update(Panel(text, border_style=PURPLE, padding=(0, 1), expand=False))
             time.sleep(1.0)
 
             # Frame B: all revealed
@@ -87,7 +119,7 @@ class RendererTool:
                 + _tarot_card_row(cards_b)
                 + (f"\n\n[{RED}]  ⚠  水晶球異動：hash 含不詳字符[/]" if bad_chars else f"\n\n[{GREEN}]  ✦  氣場穩定[/]")
             )
-            live.update(Panel(text2, border_style=crystal_color, padding=(0, 1)))
+            live.update(Panel(text2, border_style=crystal_color, padding=(0, 1), expand=False))
             time.sleep(1.2)
 
     @contextmanager
@@ -132,28 +164,35 @@ class RendererTool:
             f"  [{MUTED}]◈ 塔羅：{result.tarot_card} {result.tarot_position}[/]"
         )
 
+    # ── Mining (Live rolling display) ─────────────────────────────────────────
+
     def show_mining_start(self) -> None:
-        self.console.print(
-            f"\n[{PURPLE}]  ╔════════════ ⚒ 逆天改運中 ⚒ ════════════╗[/]\n"
-            f"[{GOLD}]  ║  正在燃燒 Token 祭天，請耐心等候...      ║[/]\n"
-            f"[{PURPLE}]  ╚════════════════════════════════════════╝[/]\n\n"
-            f"[{MUTED}]           ~   ~  ~    ~  ~[/]\n"
-            f"[{GOLD}]           | | | | | | | | | |[/]\n"
-            f"[{GOLD}]          _|_|_|_|_|_|_|_|_|__[/]\n"
-            f"[{GOLD}]         |  🔥 焚燒 Token 祭壇 🔥  |[/]\n"
-            f"[{GOLD}]         |________________________|[/]"
-        )
+        self._mining_log.clear()
+        self._mining_live = Live(console=self.console, refresh_per_second=4)
+        self._mining_live.start()
+        self._mining_live.update(Text.from_markup(_MINING_ALTAR))
 
     def show_mining_attempt(
         self, attempt: int, max_attempts: int, hash_str: str, lucky: bool, target: Optional[str] = None
     ) -> None:
+        highlighted = _highlight_hash(hash_str, target if lucky else None)
         if lucky:
-            status = f"[{GREEN}]  ✦ 吉兆！含 {target or '幸運字串'}！[/]"
+            line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{GREEN}]✦ 吉兆！含 {target or '幸運字串'}[/]"
         else:
-            status = f"[{RED}]  ✗ 無緣[/]"
-        self.console.print(
-            f"  [{MUTED}]嘗試 {attempt}/{max_attempts}  [{CYAN}]hash: {hash_str}[/][/]{status}"
-        )
+            line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{RED}]✗ 無緣[/]"
+
+        self._mining_log.append(line)
+
+        if self._mining_live:
+            content = _MINING_ALTAR + "\n" + "\n".join(self._mining_log)
+            self._mining_live.update(Text.from_markup(content))
+
+    def show_mining_end(self) -> None:
+        if self._mining_live:
+            self._mining_live.stop()
+            self._mining_live = None
+
+    # ── Outcomes ─────────────────────────────────────────────────────────────
 
     def show_success(self, session, max_attempts: int) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
