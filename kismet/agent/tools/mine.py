@@ -1,3 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kismet.agent.tools.divine import DivinationTool
+    from kismet.agent.tools.git import GitTool
+    from kismet.config import Config
+
+
 def is_lucky(hash_str: str, targets: list[str]) -> bool:
     """Return True if hash_str matches custom targets or default lucky patterns."""
     if targets:
@@ -26,3 +36,51 @@ def _has_default_lucky(hash_str: str) -> bool:
             if sub == sub[::-1]:
                 return True
     return False
+
+
+class MinerTool:
+    def __init__(self, divine_tool: DivinationTool, git_tool: GitTool, config: Config):
+        self.divine_tool = divine_tool
+        self.git_tool = git_tool
+        self.config = config
+
+    def mine(self, session, renderer, targets: list[str]) -> bool:
+        """Rephrase commit message until hash is lucky or max attempts reached.
+        Modifies session in place. Returns True if a lucky hash was found.
+        """
+        from kismet.agent.tools.git import GitContext
+
+        session.original_predicted_hash = session.predicted_hash
+        max_attempts = self.config.max_mine_attempts
+
+        renderer.show_mining_start()
+
+        for attempt in range(1, max_attempts + 1):
+            new_msg, in_tok, out_tok = self.divine_tool.rephrase_message(
+                session.current_message,
+                attempt=attempt,
+                max_attempts=max_attempts,
+            )
+            session.total_input_tokens += in_tok
+            session.total_output_tokens += out_tok
+
+            ctx = GitContext(
+                tree_sha=session.tree_sha,
+                parent_sha=session.parent_sha,
+                author_name=session.author_name,
+                author_email=session.author_email,
+                fixed_timestamp=session.fixed_timestamp,
+            )
+            new_hash = self.git_tool.compute_hash(new_msg, ctx)
+            lucky = is_lucky(new_hash, targets)
+
+            renderer.show_mining_attempt(attempt, max_attempts, new_hash, lucky)
+
+            session.current_message = new_msg
+            session.predicted_hash = new_hash
+            session.mine_attempts = attempt
+
+            if lucky:
+                return True
+
+        return False
