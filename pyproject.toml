@@ -1,0 +1,21 @@
+[project]
+name = "kismet"
+version = "0.1.0"
+description = "Karma-Induced SHA Mining and Exorcism Tool"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+    "openai>=1.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+kismet = "kismet.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

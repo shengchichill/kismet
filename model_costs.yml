@@ -1,0 +1,13 @@
+# input_cost_per_1m / output_cost_per_1m in USD per 1,000,000 tokens
+gpt-4o-mini:
+  input_cost_per_1m: 0.15
+  output_cost_per_1m: 0.60
+gpt-4o:
+  input_cost_per_1m: 2.50
+  output_cost_per_1m: 10.00
+claude-3-5-haiku:
+  input_cost_per_1m: 0.80
+  output_cost_per_1m: 4.00
+claude-3-5-sonnet:
+  input_cost_per_1m: 3.00
+  output_cost_per_1m: 15.00
