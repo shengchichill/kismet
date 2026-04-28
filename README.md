@@ -35,8 +35,12 @@ Requires [uv](https://github.com/astral-sh/uv).
 
 ```bash
 git clone https://github.com/yourname/kismet.git
-cd kismet
-uv sync
+```
+
+Install as a global tool so `kismet` works from any directory:
+
+```bash
+uv tool install --editable ./kismet
 ```
 
 ---
@@ -53,14 +57,23 @@ uv sync
 
 KISMET calls LLMs via [LiteLLM proxy](https://github.com/BerriAI/litellm), so any model supported by your proxy works.
 
+Set environment variables before running:
+
+```bash
+export LITELLM_BASE_URL="http://your-proxy:4000"
+export LITELLM_API_KEY="your-key"
+```
+
 ---
 
 ## Usage
 
-Stage your changes first:
+Go to any git repo, stage your changes, then run kismet:
 
 ```bash
+cd your-project
 git add .
+kismet commit
 ```
 
 ### `kismet commit` — Full auto
@@ -76,7 +89,7 @@ Generates a commit message → divines the hash → decides based on K-value:
 | 81–100 | 🎉 運勢極佳 | Commit + celebrate |
 
 ```bash
-uv run kismet commit
+kismet commit
 ```
 
 ### `kismet divine` — Divination only
@@ -84,7 +97,7 @@ uv run kismet commit
 Reads your diff, predicts the hash, draws tarot, shows K-value. No commit.
 
 ```bash
-uv run kismet divine
+kismet divine
 ```
 
 ### `kismet mine [TARGETS...]` — Mining only
@@ -92,8 +105,8 @@ uv run kismet divine
 Rephrases commit message until the hash matches target strings. No commit.
 
 ```bash
-uv run kismet mine          # default lucky list: 888 168 777 666 + palindromes + runs
-uv run kismet mine 888 168  # custom targets
+kismet mine              # default lucky list: 888 168 777 666 + palindromes + runs
+kismet mine 888 168      # custom targets
 ```
 
 ### `kismet force` — Exorcism commit
@@ -101,7 +114,7 @@ uv run kismet mine 888 168  # custom targets
 Generates message, skips divination, performs exorcism ritual, commits immediately.
 
 ```bash
-uv run kismet force
+kismet force
 ```
 
 ### `kismet curse [TARGETS...]` — Curse mode
@@ -109,8 +122,8 @@ uv run kismet force
 Mines for an *unlucky* hash (dead, 404, f00d, bad) and commits it.
 
 ```bash
-uv run kismet curse
-uv run kismet curse dead 404
+kismet curse
+kismet curse dead 404
 ```
 
 ---
