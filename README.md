@@ -22,6 +22,7 @@ KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–1
 
 - **占卜 (Divination)** — LLM reads your diff, predicts the commit hash, draws a tarot card, and assigns a K-value
 - **逆天改運 (Mining)** — Rephrases your commit message in a loop until the hash contains a lucky string, using pure-Python SHA1 (no git subprocess in hot loop)
+- **感測器籤詩 (MacSensorAgent optional)** — During mining, reads `http://127.0.0.1:38661/snapshot` when available and folds trackpad/lid/impact/camera metadata into the ritual display.
 - **驅魔 (Exorcism)** — Force-commit with ritual ASCII art, no questions asked
 - **下蠱 (Curse)** — Reverse mode: mine for an *unlucky* hash
 - **Fixed-timestamp commits** — Predicted hash always matches actual commit hash via `GIT_COMMITTER_DATE`
@@ -108,6 +109,8 @@ Rephrases commit message until the hash matches target strings. No commit.
 kismet mine              # default lucky list: 888 168 777 666 + palindromes + runs
 kismet mine 888 168      # custom targets
 ```
+
+If MacSensorAgent is running, `kismet mine` also shows a `Mac sensor omen` line from the local snapshot API. This is optional and fail-open; KISMET keeps mining normally when the sensor endpoint is unavailable.
 
 ### `kismet force` — Exorcism commit
 

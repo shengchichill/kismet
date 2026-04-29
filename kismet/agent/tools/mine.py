@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+from kismet.agent.tools.mac_sensor import format_mining_omen, get_sensor_snapshot
+
 if TYPE_CHECKING:
     from kismet.agent.tools.divine import DivinationTool
     from kismet.agent.tools.git import GitTool
@@ -78,8 +80,16 @@ class MinerTool:
                 new_hash = self.git_tool.compute_hash(new_msg, ctx)
                 lucky_match = find_lucky_match(new_hash, targets)
                 lucky = lucky_match is not None
+                sensor_omen = format_mining_omen(get_sensor_snapshot())
 
-                renderer.show_mining_attempt(attempt, max_attempts, new_hash, lucky, target=lucky_match)
+                renderer.show_mining_attempt(
+                    attempt,
+                    max_attempts,
+                    new_hash,
+                    lucky,
+                    target=lucky_match,
+                    sensor_omen=sensor_omen,
+                )
 
                 session.current_message = new_msg
                 session.predicted_hash = new_hash

@@ -173,13 +173,22 @@ class RendererTool:
         self._mining_live.update(Text.from_markup(_MINING_ALTAR))
 
     def show_mining_attempt(
-        self, attempt: int, max_attempts: int, hash_str: str, lucky: bool, target: Optional[str] = None
+        self,
+        attempt: int,
+        max_attempts: int,
+        hash_str: str,
+        lucky: bool,
+        target: Optional[str] = None,
+        sensor_omen: str = "",
     ) -> None:
         highlighted = _highlight_hash(hash_str, target if lucky else None)
         if lucky:
             line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{GREEN}]✦ 吉兆！含 {target or '幸運字串'}[/]"
         else:
             line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{RED}]✗ 無緣[/]"
+
+        if sensor_omen:
+            line += f"\n  [{MUTED}]Mac sensor omen:[/] [{GOLD}]{sensor_omen}[/]"
 
         self._mining_log.append(line)
 
