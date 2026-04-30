@@ -22,7 +22,7 @@ KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–1
 
 - **占卜 (Divination)** — LLM reads your diff, predicts the commit hash, draws a tarot card, and assigns a K-value
 - **逆天改運 (Mining)** — Rephrases your commit message in a loop until the hash contains a lucky string, using pure-Python SHA1 (no git subprocess in hot loop)
-- **感測器籤詩 (MacSensorAgent optional)** — During mining, reads `http://127.0.0.1:38661/snapshot` when available and folds trackpad/lid/impact/camera metadata into the ritual display.
+- **雙手祈禱改運 (MacSensorAgent required by default)** — During mining, confirms a two-hand prayer pose through MacSensorAgent before every hash attempt and folds sensor metadata into the ritual display.
 - **驅魔 (Exorcism)** — Force-commit with ritual ASCII art, no questions asked
 - **下蠱 (Curse)** — Reverse mode: mine for an *unlucky* hash
 - **Fixed-timestamp commits** — Predicted hash always matches actual commit hash via `GIT_COMMITTER_DATE`
@@ -55,6 +55,8 @@ uv tool install --editable ./kismet
 | `KISMET_MODEL` | `gpt-4o-mini` | |
 | `MAX_MINE_ATTEMPTS` | `10` | |
 | `MAX_MESSAGE_TOKENS` | `200` | |
+| `KISMET_REQUIRE_PRAYER_POSE` | `1` | |
+| `KISMET_PRAYER_POSE_TIMEOUT` | `15` | |
 
 KISMET calls LLMs via [LiteLLM proxy](https://github.com/BerriAI/litellm), so any model supported by your proxy works.
 
@@ -110,7 +112,9 @@ kismet mine              # default lucky list: 888 168 777 666 + palindromes + r
 kismet mine 888 168      # custom targets
 ```
 
-If MacSensorAgent is running, `kismet mine` also shows a `Mac sensor omen` line from the local snapshot API. This is optional and fail-open; KISMET keeps mining normally when the sensor endpoint is unavailable.
+`kismet mine` requires MacSensorAgent to confirm a two-hand prayer pose before every mining attempt. Start MacSensorAgent first, grant camera permission, then hold both hands together facing the camera when prompted. If the pose is not confirmed within `KISMET_PRAYER_POSE_TIMEOUT`, mining stops before rephrasing the message or committing anything.
+
+KISMET also shows a `Mac sensor omen` line from the local snapshot API and posts mining progress back to MacSensorAgent so the Vibe Island can show KISMET attempts, lucky matches, blocked rituals, and completion state. Set `KISMET_REQUIRE_PRAYER_POSE=0` only if you explicitly want the old fail-open behavior.
 
 ### `kismet force` — Exorcism commit
 

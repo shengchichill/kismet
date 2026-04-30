@@ -12,6 +12,19 @@ def test_load_config_reads_env_vars(monkeypatch):
     assert cfg.model == "gpt-4o-mini"  # default
     assert cfg.max_mine_attempts == 10  # default
     assert cfg.max_message_tokens == 200  # default
+    assert cfg.require_prayer_pose is True
+    assert cfg.prayer_pose_timeout_seconds == 15
+
+
+def test_load_config_reads_prayer_pose_env_vars(monkeypatch):
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.setenv("KISMET_REQUIRE_PRAYER_POSE", "0")
+    monkeypatch.setenv("KISMET_PRAYER_POSE_TIMEOUT", "3.5")
+    cfg = load_config()
+
+    assert cfg.require_prayer_pose is False
+    assert cfg.prayer_pose_timeout_seconds == 3.5
 
 
 def test_load_config_raises_if_missing_required(monkeypatch):

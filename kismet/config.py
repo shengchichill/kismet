@@ -21,6 +21,8 @@ class Config:
     max_mine_attempts: int
     max_message_tokens: int
     _costs_path: str
+    require_prayer_pose: bool = True
+    prayer_pose_timeout_seconds: float = 15.0
     _costs_cache: Optional[dict] = None
 
     def get_model_costs(self) -> Optional[ModelCosts]:
@@ -70,5 +72,7 @@ def load_config(costs_path: str = _DEFAULT_COSTS_PATH) -> Config:
         model=os.environ.get("KISMET_MODEL", "gpt-4o-mini"),
         max_mine_attempts=int(os.environ.get("MAX_MINE_ATTEMPTS", "10")),
         max_message_tokens=int(os.environ.get("MAX_MESSAGE_TOKENS", "200")),
+        require_prayer_pose=os.environ.get("KISMET_REQUIRE_PRAYER_POSE", "1") not in {"0", "false", "False"},
+        prayer_pose_timeout_seconds=float(os.environ.get("KISMET_PRAYER_POSE_TIMEOUT", "15")),
         _costs_path=costs_path,
     )

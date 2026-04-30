@@ -172,6 +172,19 @@ class RendererTool:
         self._mining_live.start()
         self._mining_live.update(Text.from_markup(_MINING_ALTAR))
 
+    def show_prayer_pose_wait(self, attempt: int, max_attempts: int) -> None:
+        self._append_mining_line(
+            f"  [{GOLD}]🙏 嘗試 {attempt}/{max_attempts} 前，請雙手合十面向鏡頭...[/]"
+        )
+
+    def show_prayer_pose_confirmed(self) -> None:
+        self._append_mining_line(f"  [{GREEN}]🙏 祈禱姿勢確認，准予本輪改運。[/]")
+
+    def show_prayer_pose_blocked(self, reason: str) -> None:
+        self._append_mining_line(
+            f"  [{RED}]✗ 改運中止：未偵測到雙手祈禱姿勢。[/]\n  [{MUTED}]{reason}[/]"
+        )
+
     def show_mining_attempt(
         self,
         attempt: int,
@@ -190,6 +203,9 @@ class RendererTool:
         if sensor_omen:
             line += f"\n  [{MUTED}]Mac sensor omen:[/] [{GOLD}]{sensor_omen}[/]"
 
+        self._append_mining_line(line)
+
+    def _append_mining_line(self, line: str) -> None:
         self._mining_log.append(line)
 
         if self._mining_live:

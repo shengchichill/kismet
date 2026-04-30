@@ -1,7 +1,7 @@
 from kismet.agent.session import KismetSession
 from kismet.agent.tools.divine import DivinationTool
 from kismet.agent.tools.git import GitContext, GitTool
-from kismet.agent.tools.mine import MinerTool, is_lucky
+from kismet.agent.tools.mine import MineStatus, MinerTool, is_lucky
 from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
 
@@ -63,8 +63,10 @@ class KismetAgent:
         self.renderer.show_divination_result(session.predicted_hash, result)
 
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
-        success = self.miner.mine(session, self.renderer, targets)
-        if success:
+        result = self.miner.mine(session, self.renderer, targets)
+        if result.status is MineStatus.BLOCKED:
+            return
+        if result.status is MineStatus.SUCCESS:
             self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
         else:
             self.renderer.show_blessing(session)
@@ -101,8 +103,10 @@ class KismetAgent:
         """Only mine for a lucky hash — no commit."""
         self.renderer.show_banner()
         session = self._build_session()
-        success = self.miner.mine(session, self.renderer, targets)
-        if success:
+        result = self.miner.mine(session, self.renderer, targets)
+        if result.status is MineStatus.BLOCKED:
+            return
+        if result.status is MineStatus.SUCCESS:
             self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
         else:
             self.renderer.show_blessing(session)

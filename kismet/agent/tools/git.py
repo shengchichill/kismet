@@ -73,7 +73,7 @@ class GitTool:
         env["GIT_COMMITTER_DATE"] = ctx.fixed_timestamp
         env["GIT_AUTHOR_DATE"] = ctx.fixed_timestamp
         self._run(
-            ["git", "commit", "-m", message, f"--date={ctx.fixed_timestamp}"],
+            ["git", "-c", "commit.gpgsign=false", "commit", "-m", message, f"--date={ctx.fixed_timestamp}"],
             env=env,
         )
         return self._run(["git", "rev-parse", "HEAD"])

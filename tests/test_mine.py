@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from kismet.agent.tools.mine import is_lucky
 
 
@@ -63,7 +63,7 @@ def test_custom_target_case_insensitive():
 
 # --- MinerTool ---
 
-from kismet.agent.tools.mine import MinerTool
+from kismet.agent.tools.mine import MineStatus, MinerTool
 from kismet.agent.tools.git import GitContext
 from kismet.agent.session import KismetSession
 
@@ -82,6 +82,14 @@ def _make_session(predicted_hash: str = "3f7a404d8c2b1e5f") -> KismetSession:
     )
 
 
+def _make_config(max_mine_attempts: int = 10, require_prayer_pose: bool = False):
+    return MagicMock(
+        max_mine_attempts=max_mine_attempts,
+        require_prayer_pose=require_prayer_pose,
+        prayer_pose_timeout_seconds=0,
+    )
+
+
 def test_mine_succeeds_when_lucky_hash_found():
     mock_divine = MagicMock()
     mock_divine.rephrase_message.return_value = ("feat: new wording", 50, 20)
@@ -90,10 +98,10 @@ def test_mine_succeeds_when_lucky_hash_found():
     mock_renderer = MagicMock()
 
     session = _make_session()
-    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=MagicMock(max_mine_attempts=10))
-    success = tool.mine(session, mock_renderer, targets=[])
+    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=_make_config(max_mine_attempts=10))
+    result = tool.mine(session, mock_renderer, targets=[])
 
-    assert success is True
+    assert result.status is MineStatus.SUCCESS
     assert session.current_message == "feat: new wording"
     assert session.predicted_hash == "abc888def"
     assert session.mine_attempts == 1
@@ -107,10 +115,10 @@ def test_mine_fails_after_max_attempts():
     mock_renderer = MagicMock()
 
     session = _make_session()
-    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=MagicMock(max_mine_attempts=3))
-    success = tool.mine(session, mock_renderer, targets=[])
+    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=_make_config(max_mine_attempts=3))
+    result = tool.mine(session, mock_renderer, targets=[])
 
-    assert success is False
+    assert result.status is MineStatus.EXHAUSTED
     assert session.mine_attempts == 3
 
 
@@ -122,8 +130,47 @@ def test_mine_accumulates_tokens():
     mock_renderer = MagicMock()
 
     session = _make_session()
-    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=MagicMock(max_mine_attempts=10))
+    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=_make_config(max_mine_attempts=10))
     tool.mine(session, mock_renderer, targets=[])
 
     assert session.total_input_tokens == 180   # 60 * 3
     assert session.total_output_tokens == 75   # 25 * 3
+
+
+def test_mine_blocks_before_rephrase_without_prayer_pose():
+    mock_divine = MagicMock()
+    mock_git = MagicMock()
+    mock_renderer = MagicMock()
+
+    session = _make_session()
+    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=_make_config(require_prayer_pose=True))
+
+    with patch("kismet.agent.tools.mine.wait_for_prayer_pose", return_value=(False, "no prayer", {})):
+        result = tool.mine(session, mock_renderer, targets=[])
+
+    assert result.status is MineStatus.BLOCKED
+    assert result.reason == "no prayer"
+    assert session.mine_attempts == 0
+    mock_divine.rephrase_message.assert_not_called()
+    mock_git.compute_hash.assert_not_called()
+    mock_renderer.show_prayer_pose_blocked.assert_called_once_with("no prayer")
+
+
+def test_mine_checks_prayer_pose_before_each_attempt():
+    mock_divine = MagicMock()
+    mock_divine.rephrase_message.return_value = ("feat: rephrased", 50, 20)
+    mock_git = MagicMock()
+    mock_git.compute_hash.side_effect = ["no_luck_1", "abc888xyz"]
+    mock_renderer = MagicMock()
+
+    session = _make_session()
+    tool = MinerTool(divine_tool=mock_divine, git_tool=mock_git, config=_make_config(require_prayer_pose=True))
+
+    with patch(
+        "kismet.agent.tools.mine.wait_for_prayer_pose",
+        return_value=(True, "prayer pose confirmed", {"latestPrayerPoseActive": True, "latestPrayerPoseConfidence": 0.9, "latestPrayerPoseHandCount": 2}),
+    ) as wait_for_prayer_pose:
+        result = tool.mine(session, mock_renderer, targets=[])
+
+    assert result.status is MineStatus.SUCCESS
+    assert wait_for_prayer_pose.call_count == 2
