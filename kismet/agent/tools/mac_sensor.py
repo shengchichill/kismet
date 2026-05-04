@@ -53,8 +53,11 @@ def post_kismet_event(event_name: str, summary: str = "", timeout: float = 0.15,
         return
 
 
-def is_prayer_pose_active(snapshot: dict[str, Any], min_confidence: float = 0.7) -> bool:
-    """Return True when MacSensorAgent sees a two-hand prayer pose."""
+def is_prayer_pose_active(snapshot: dict[str, Any], min_confidence: float = 0.62) -> bool:
+    """Return True when MacSensorAgent sees prayer pose or green Kuai Kuai."""
+    if is_green_kuai_kuai_offering(snapshot):
+        return True
+
     return (
         snapshot.get("latestPrayerPoseActive") is True
         and isinstance(snapshot.get("latestPrayerPoseConfidence"), (int, float))
@@ -64,9 +67,38 @@ def is_prayer_pose_active(snapshot: dict[str, Any], min_confidence: float = 0.7)
     )
 
 
+def is_green_kuai_kuai_offering(snapshot: dict[str, Any], min_confidence: float = 0.55) -> bool:
+    color, confidence = _kuai_kuai_offering(snapshot)
+    return color == "green" and confidence >= min_confidence
+
+
+def is_forbidden_kuai_kuai_offering(snapshot: dict[str, Any], min_confidence: float = 0.55) -> bool:
+    color, confidence = _kuai_kuai_offering(snapshot)
+    return color is not None and color != "green" and confidence >= min_confidence
+
+
+def _kuai_kuai_offering(snapshot: dict[str, Any]) -> tuple[str | None, float]:
+    detected = snapshot.get("latestKuaiKuaiDetected") is True
+    color = snapshot.get("latestKuaiKuaiColor")
+    confidence = snapshot.get("latestKuaiKuaiConfidence", 0)
+
+    if not detected and snapshot.get("latestGreenKuaiKuaiDetected") is True:
+        color = "green"
+        confidence = snapshot.get("latestGreenKuaiKuaiConfidence", 0)
+        detected = True
+
+    if not detected or not isinstance(color, str) or not isinstance(confidence, (int, float)):
+        return None, 0
+    return color.lower(), float(confidence)
+
+
 def prayer_pose_status(snapshot: dict[str, Any]) -> str:
     if not snapshot:
         return "MacSensorAgent snapshot unavailable; start MacSensorAgent and grant camera permission"
+
+    if is_forbidden_kuai_kuai_offering(snapshot):
+        color, confidence = _kuai_kuai_offering(snapshot)
+        return _forbidden_kuai_kuai_message(color or "non-green", confidence)
 
     camera = snapshot.get("camera") if isinstance(snapshot.get("camera"), dict) else {}
     auth = camera.get("authorizationStatus") if isinstance(camera, dict) else None
@@ -78,19 +110,48 @@ def prayer_pose_status(snapshot: dict[str, Any]) -> str:
     return f"prayer pose not confirmed; hands={hand_count} confidence={confidence}"
 
 
+def _forbidden_kuai_kuai_message(color: str, confidence: float) -> str:
+    color_name = _kuai_kuai_color_name(color)
+    return (
+        f"forbidden {color_name} Kuai Kuai offering detected "
+        f"(confidence={confidence:.2f}); mining terminated before the machine spirits get confused"
+    )
+
+
+def _kuai_kuai_color_name(color: str) -> str:
+    return {
+        "green": "green",
+        "yellow": "yellow",
+        "red": "red",
+        "orange": "orange",
+        "blue": "blue",
+        "purple": "purple",
+    }.get(color, color)
+
+
 def _camera_authorized(auth: Any) -> bool:
     auth_text = str(auth)
     return auth_text == "authorized" or auth_text == "AVAuthorizationStatus(rawValue: 3)"
 
 
-def wait_for_prayer_pose(timeout: float, poll_interval: float = 0.25) -> tuple[bool, str, dict[str, Any]]:
+def wait_for_prayer_pose(
+    timeout: float,
+    poll_interval: float = 0.25,
+    snapshot_timeout: float = 0.75,
+) -> tuple[bool, str, dict[str, Any]]:
     """Poll MacSensorAgent until the user is holding a two-hand prayer pose."""
     deadline = time.monotonic() + max(0, timeout)
     last_snapshot: dict[str, Any] = {}
     while True:
-        last_snapshot = get_sensor_snapshot()
-        if is_prayer_pose_active(last_snapshot):
-            return True, "prayer pose confirmed", last_snapshot
+        snapshot = get_sensor_snapshot(timeout=snapshot_timeout)
+        if snapshot:
+            last_snapshot = snapshot
+            if is_forbidden_kuai_kuai_offering(snapshot):
+                return False, prayer_pose_status(snapshot), snapshot
+            if is_green_kuai_kuai_offering(snapshot):
+                return True, "green Kuai Kuai offering confirmed", snapshot
+            if is_prayer_pose_active(snapshot):
+                return True, "prayer pose confirmed", snapshot
 
         if time.monotonic() >= deadline:
             return False, prayer_pose_status(last_snapshot), last_snapshot
@@ -124,6 +185,10 @@ def format_mining_omen(snapshot: dict[str, Any]) -> str:
     prayer_confidence = snapshot.get("latestPrayerPoseConfidence")
     if prayer_active is True and isinstance(prayer_confidence, (int, float)):
         parts.append(f"prayer pose {prayer_confidence:.2f}")
+
+    kuai_kuai_color, kuai_kuai_confidence = _kuai_kuai_offering(snapshot)
+    if kuai_kuai_color:
+        parts.append(f"Kuai Kuai {kuai_kuai_color} {kuai_kuai_confidence:.2f}")
 
     camera = snapshot.get("camera") if isinstance(snapshot.get("camera"), dict) else {}
     devices = camera.get("devices") if isinstance(camera, dict) else []

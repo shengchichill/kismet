@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 from kismet.agent.tools.mac_sensor import (
     format_mining_omen,
     get_sensor_snapshot,
+    is_forbidden_kuai_kuai_offering,
+    is_green_kuai_kuai_offering,
     is_prayer_pose_active,
     post_kismet_event,
     prayer_pose_status,
@@ -56,6 +58,9 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
             "latestPrayerPoseActive": True,
             "latestPrayerPoseConfidence": 0.88,
             "latestPrayerPoseHandCount": 2,
+            "latestKuaiKuaiDetected": True,
+            "latestKuaiKuaiColor": "green",
+            "latestKuaiKuaiConfidence": 0.78,
             "camera": {
                 "authorizationStatus": "authorized",
                 "devices": [{"localizedName": "FaceTime HD Camera"}],
@@ -67,6 +72,7 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
     assert "lid 63deg" in omen
     assert "impact 0.44" in omen
     assert "prayer pose 0.88" in omen
+    assert "Kuai Kuai green 0.78" in omen
     assert "camera devices 1" in omen
     assert "camera authorized" in omen
 
@@ -76,6 +82,13 @@ def test_is_prayer_pose_active_requires_two_hands_and_confidence():
         {
             "latestPrayerPoseActive": True,
             "latestPrayerPoseConfidence": 0.8,
+            "latestPrayerPoseHandCount": 2,
+        }
+    ) is True
+    assert is_prayer_pose_active(
+        {
+            "latestPrayerPoseActive": True,
+            "latestPrayerPoseConfidence": 0.65,
             "latestPrayerPoseHandCount": 2,
         }
     ) is True
@@ -93,6 +106,32 @@ def test_is_prayer_pose_active_requires_two_hands_and_confidence():
             "latestPrayerPoseHandCount": 1,
         }
     ) is False
+
+
+def test_green_kuai_kuai_opens_ritual_gate_without_prayer_pose():
+    snapshot = {
+        "latestPrayerPoseActive": False,
+        "latestPrayerPoseConfidence": 0.0,
+        "latestPrayerPoseHandCount": 0,
+        "latestKuaiKuaiDetected": True,
+        "latestKuaiKuaiColor": "green",
+        "latestKuaiKuaiConfidence": 0.7,
+    }
+
+    assert is_green_kuai_kuai_offering(snapshot) is True
+    assert is_prayer_pose_active(snapshot) is True
+
+
+def test_non_green_kuai_kuai_is_forbidden():
+    snapshot = {
+        "latestKuaiKuaiDetected": True,
+        "latestKuaiKuaiColor": "yellow",
+        "latestKuaiKuaiConfidence": 0.74,
+    }
+
+    assert is_forbidden_kuai_kuai_offering(snapshot) is True
+    assert is_prayer_pose_active(snapshot) is False
+    assert "forbidden yellow Kuai Kuai" in prayer_pose_status(snapshot)
 
 
 def test_prayer_pose_status_reports_camera_permission():
@@ -122,6 +161,30 @@ def test_wait_for_prayer_pose_returns_confirmed_snapshot():
         assert wait_for_prayer_pose(timeout=0) == (True, "prayer pose confirmed", snapshot)
 
 
+def test_wait_for_prayer_pose_accepts_green_kuai_kuai():
+    snapshot = {
+        "latestKuaiKuaiDetected": True,
+        "latestKuaiKuaiColor": "green",
+        "latestKuaiKuaiConfidence": 0.9,
+    }
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
+        assert wait_for_prayer_pose(timeout=0) == (True, "green Kuai Kuai offering confirmed", snapshot)
+
+
+def test_wait_for_prayer_pose_immediately_blocks_forbidden_kuai_kuai():
+    snapshot = {
+        "latestKuaiKuaiDetected": True,
+        "latestKuaiKuaiColor": "red",
+        "latestKuaiKuaiConfidence": 0.82,
+    }
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
+        ok, reason, result_snapshot = wait_for_prayer_pose(timeout=15)
+
+    assert ok is False
+    assert result_snapshot == snapshot
+    assert "forbidden red Kuai Kuai" in reason
+
+
 def test_wait_for_prayer_pose_times_out_when_offline():
     with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value={}):
         ok, reason, snapshot = wait_for_prayer_pose(timeout=0)
@@ -129,3 +192,16 @@ def test_wait_for_prayer_pose_times_out_when_offline():
     assert ok is False
     assert snapshot == {}
     assert "snapshot unavailable" in reason
+
+
+def test_wait_for_prayer_pose_keeps_last_non_empty_snapshot_for_timeout_reason():
+    snapshots = [
+        {"latestPrayerPoseActive": False, "latestPrayerPoseConfidence": 0.4, "latestPrayerPoseHandCount": 1},
+        {},
+    ]
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", side_effect=snapshots):
+        ok, reason, snapshot = wait_for_prayer_pose(timeout=0.01, poll_interval=0.02)
+
+    assert ok is False
+    assert snapshot == snapshots[0]
+    assert "hands=1" in reason

@@ -133,6 +133,7 @@ K-value 範圍 0–100，由 LLM 評估，傾向給出中低分（讓大部分 h
 
 ```
 while attempts < MAX_MINE_ATTEMPTS:
+    wait_for_ritual_gate()                 # prayer pose 或綠色乖乖供品
     new_message = LLM.rephrase(current_message)   # 換句話說
     predicted_hash = compute_sha1(new_message, fixed_timestamp)
     if is_lucky(predicted_hash, targets):
@@ -141,6 +142,79 @@ while attempts < MAX_MINE_ATTEMPTS:
 ```
 
 達上限 → 祈福儀式 → 仍然 commit。
+
+### MacSensorAgent Ritual Gate
+
+KISMET 可透過 MacSensorAgent 的本機 snapshot API，在每次 mining attempt 前確認儀式是否完成。這讓 `git commit` 從單純工程操作升級成一場具身化法會：LLM 負責改咒語，SHA-1 負責看天命，MacBook camera 負責確認你到底有沒有誠意。
+
+目前 ritual gate 的通過條件：
+
+- `latestPrayerPoseActive == true`，且 confidence 與 hand count 達標。
+- 或 `latestKuaiKuaiDetected == true`、`latestKuaiKuaiColor == "green"`，且 confidence 達標。
+- 如果 `latestKuaiKuaiDetected == true` 但 `latestKuaiKuaiColor != "green"`，立即終止 mining。
+
+綠色乖乖是 prayer pose 的 bypass，不是替代整個 MacSensorAgent。因為雙手合十是人類對宇宙的懇求，綠色乖乖是工程師對機房穩定性的正式賄賂。兩者任一成立，都可以視為「准予逆天改運」。黃色、紅色等非綠色乖乖則是禁忌供品；KISMET 應停止 mining，避免把機器靈搞到不知道今天到底要乖還是要壞。
+
+Snapshot example：
+
+```json
+{
+  "latestPrayerPoseActive": false,
+  "latestPrayerPoseConfidence": 0.12,
+  "latestPrayerPoseHandCount": 0,
+  "latestKuaiKuaiDetected": true,
+  "latestKuaiKuaiColor": "green",
+  "latestKuaiKuaiConfidence": 0.78,
+  "camera": {
+    "authorizationStatus": "authorized"
+  }
+}
+```
+
+KISMET 判定邏輯：
+
+```python
+def is_ritual_gate_open(snapshot):
+    if (
+        snapshot.get("latestKuaiKuaiDetected") is True
+        and snapshot.get("latestKuaiKuaiColor") != "green"
+        and snapshot.get("latestKuaiKuaiConfidence", 0) >= 0.55
+    ):
+        raise ForbiddenOffering("non-green Kuai Kuai detected")
+
+    prayer_pose_ok = (
+        snapshot.get("latestPrayerPoseActive") is True
+        and snapshot.get("latestPrayerPoseConfidence", 0) >= 0.62
+        and snapshot.get("latestPrayerPoseHandCount", 0) >= 2
+    )
+    green_kuai_kuai_ok = (
+        snapshot.get("latestKuaiKuaiDetected") is True
+        and snapshot.get("latestKuaiKuaiColor") == "green"
+        and snapshot.get("latestKuaiKuaiConfidence", 0) >= 0.55
+    )
+    return prayer_pose_ok or green_kuai_kuai_ok
+```
+
+Renderer 文案方向：
+
+```text
+🙏 祈禱姿勢確認，准予本輪改運。
+```
+
+```text
+🟢 綠色乖乖供品確認，機器已被安撫，准予本輪改運。
+```
+
+```text
+✗ 改運中止：偵測到黃色/紅色乖乖。這不是供品，是機房禁忌。
+```
+
+Fail behavior：
+
+- MacSensorAgent 不可用且 `KISMET_REQUIRE_PRAYER_POSE=1` 時，停止 mining，避免無供品硬闖天庭。
+- 有 prayer pose 或綠色乖乖任一成立時，繼續 mining。
+- 黃色、紅色或其他非綠色乖乖成立時，立即停止 mining，不進入 LLM rephrase，不燃燒 token。
+- 若只偵測到普通綠色物體而誤判，系統可接受；這不是 bug，是宇宙突然很好說話。
 
 ### 實際 commit
 

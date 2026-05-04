@@ -174,15 +174,15 @@ class RendererTool:
 
     def show_prayer_pose_wait(self, attempt: int, max_attempts: int) -> None:
         self._append_mining_line(
-            f"  [{GOLD}]🙏 嘗試 {attempt}/{max_attempts} 前，請雙手合十面向鏡頭...[/]"
+            f"  [{GOLD}]🙏 嘗試 {attempt}/{max_attempts} 前，請雙手合十或獻上綠色乖乖...[/]"
         )
 
     def show_prayer_pose_confirmed(self) -> None:
-        self._append_mining_line(f"  [{GREEN}]🙏 祈禱姿勢確認，准予本輪改運。[/]")
+        self._append_mining_line(f"  [{GREEN}]🙏 儀式確認，准予本輪改運。[/]")
 
     def show_prayer_pose_blocked(self, reason: str) -> None:
         self._append_mining_line(
-            f"  [{RED}]✗ 改運中止：未偵測到雙手祈禱姿勢。[/]\n  [{MUTED}]{reason}[/]"
+            f"  [{RED}]✗ 改運中止：儀式 gate 未通過。[/]\n  [{MUTED}]{reason}[/]"
         )
 
     def show_mining_attempt(
