@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QPoint, Qt, QTimer
 from PyQt6.QtGui import QMouseEvent, QMovie, QPixmap
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 from kismet.mage.animation import AnimationController
 from kismet.mage.state_watcher import StateWatcher
@@ -35,7 +36,17 @@ def _default_pos() -> tuple[int, int]:
     return geo.width() - w - 20, geo.height() - h - 40
 
 
-class MagePet(QMainWindow):
+def _disable_win11_rounded_corners(hwnd: int) -> None:
+    import ctypes
+    DWMWA_WINDOW_CORNER_PREFERENCE = 33
+    DWMWCP_DONOTROUND = 1
+    pref = ctypes.c_int(DWMWCP_DONOTROUND)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+        hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ctypes.byref(pref), ctypes.sizeof(pref)
+    )
+
+
+class MagePet(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(
@@ -44,6 +55,7 @@ class MagePet(QMainWindow):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setStyleSheet("background: transparent;")
         self.resize(*_WINDOW_SIZE)
 
         self._label = QLabel(self)
@@ -66,6 +78,11 @@ class MagePet(QMainWindow):
         pos = _load_pos() or _default_pos()
         self.move(*pos)
         self._set_state("idle")
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if sys.platform == "win32":
+            _disable_win11_rounded_corners(int(self.winId()))
 
     def _set_state(self, state: str) -> None:
         self._png_timer.stop()
