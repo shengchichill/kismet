@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import click
+
 PRESENCE_FILE = Path.home() / ".kismet_presence.json"
 MAGE_PID_FILE = Path.home() / ".kismet_mage.pid"
 _STALE_TIMEOUT = 5.0
@@ -79,7 +81,7 @@ def ensure_mage_running() -> None:
 
 def stop_mage() -> None:
     if not MAGE_PID_FILE.exists():
-        print("小法師 not running")
+        click.echo("小法師 not running")
         return
     try:
         pid = int(MAGE_PID_FILE.read_text().strip())
@@ -87,4 +89,4 @@ def stop_mage() -> None:
     except (ValueError, OSError):
         pass
     MAGE_PID_FILE.unlink(missing_ok=True)
-    print("小法師 已關閉")
+    click.echo("小法師 已關閉")
