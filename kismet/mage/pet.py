@@ -49,6 +49,7 @@ class MagePet(QMainWindow):
         self._label = QLabel(self)
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.resize(*_WINDOW_SIZE)
+        self._label.setStyleSheet("background: transparent; border: none;")
 
         self._png_timer = QTimer(self)
         self._png_timer.timeout.connect(self._advance_png_frame)
