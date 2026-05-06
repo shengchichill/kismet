@@ -4,6 +4,7 @@ from kismet.agent.tools.git import GitContext, GitTool
 from kismet.agent.tools.mine import MinerTool, is_lucky
 from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
+from kismet.presence import ensure_mage_running, write_state
 
 
 class KismetAgent:
@@ -51,6 +52,7 @@ class KismetAgent:
         )
 
     def _run_divination(self, session: KismetSession) -> None:
+        write_state("divine")
         self.renderer.show_divination_animation(session.predicted_hash)
         with self.renderer.divination_spinner(session.predicted_hash):
             result = self.divine.divine(session.predicted_hash, session.current_message, session.diff)
@@ -63,22 +65,28 @@ class KismetAgent:
         self.renderer.show_divination_result(session.predicted_hash, result)
 
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
+        write_state("mining")
         success = self.miner.mine(session, self.renderer, targets)
         if success:
+            write_state("success")
             self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
         else:
+            write_state("failed")
             self.renderer.show_blessing(session)
+            write_state("blessing")
         actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
         self.renderer.show_committed(actual_hash)
 
     def run_commit(self) -> None:
         """Full auto: generate message → divine → decide → [mine] → commit."""
+        ensure_mage_running()
         self.renderer.show_banner()
         session = self._build_session()
         self._run_divination(session)
 
         k = session.k_value
         if k >= 81:
+            write_state("success")
             self.renderer.show_celebration()
             actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
             self.renderer.show_committed(actual_hash)
@@ -88,24 +96,31 @@ class KismetAgent:
             if self.renderer.ask_should_mine(k):
                 self._mine_and_commit(session, targets=[])
             else:
+                write_state("success")
                 actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
                 self.renderer.show_committed(actual_hash)
 
     def run_divine(self) -> None:
         """Only divine — no commit."""
+        ensure_mage_running()
         self.renderer.show_banner()
         session = self._build_session()
         self._run_divination(session)
 
     def run_mine(self, targets: list[str]) -> None:
         """Only mine for a lucky hash — no commit."""
+        ensure_mage_running()
         self.renderer.show_banner()
         session = self._build_session()
+        write_state("mining")
         success = self.miner.mine(session, self.renderer, targets)
         if success:
+            write_state("success")
             self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
         else:
+            write_state("failed")
             self.renderer.show_blessing(session)
+            write_state("blessing")
         target_label = " ".join(targets) if targets else "default lucky list"
         self.renderer.console.print(
             f"\n  Lucky target: [{target_label}]\n"
@@ -115,16 +130,19 @@ class KismetAgent:
 
     def run_force(self) -> None:
         """Force commit with exorcism ritual, no divination."""
+        ensure_mage_running()
         self.renderer.show_banner()
         diff = self.git.get_staged_diff()
         ctx = self.git.get_context()
         message, _, _ = self.divine.generate_message(diff)
+        write_state("exorcism")
         self.renderer.show_exorcism()
         actual_hash = self.git.commit(message, ctx)
         self.renderer.show_committed(actual_hash)
 
     def run_curse(self, targets: list[str]) -> None:
         """Reverse mine: find an unlucky hash and commit it."""
+        ensure_mage_running()
         _DEFAULT_CURSE = ["dead", "404", "f00d", "bad"]
         effective = targets if targets else _DEFAULT_CURSE
         self.renderer.show_banner()
@@ -133,6 +151,7 @@ class KismetAgent:
             f"\n  [bold red]⬇ 下蠱模式啟動 — 尋找不詳 hash...[/bold red]\n"
             f"  目標字串: {effective}"
         )
+        write_state("curse")
         self.renderer.show_mining_start()
 
         for attempt in range(1, self.config.max_mine_attempts + 1):
@@ -146,11 +165,13 @@ class KismetAgent:
             session.current_message = new_msg
             session.predicted_hash = new_hash
             if cursed:
+                write_state("success")
                 self.renderer.console.print(f"\n  [red]☠ 下蠱成功！不詳 hash 已就位。[/red]")
                 actual_hash = self.git.commit(new_msg, self._ctx_from_session(session))
                 self.renderer.show_committed(actual_hash)
                 return
 
+        write_state("failed")
         self.renderer.console.print("\n  [yellow]下蠱未成功，天地不從。仍以普通 hash 提交。[/yellow]")
         actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
         self.renderer.show_committed(actual_hash)
