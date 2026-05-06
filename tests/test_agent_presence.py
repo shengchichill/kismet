@@ -75,6 +75,7 @@ def test_run_mine_writes_failed_and_blessing_on_fail(mock_ensure, mock_write):
 
     agent.run_mine([])
 
+    mock_ensure.assert_called_once()
     states = [c.args[0] for c in mock_write.call_args_list]
     assert "mining" in states
     assert "failed" in states
@@ -97,6 +98,7 @@ def test_run_curse_writes_curse_and_failed_on_miss(mock_ensure, mock_write):
 
     agent.run_curse([])
 
+    mock_ensure.assert_called_once()
     states = [c.args[0] for c in mock_write.call_args_list]
     assert "curse" in states
     assert "failed" in states
@@ -120,5 +122,59 @@ def test_run_divine_writes_divine(mock_ensure, mock_write):
 
     agent.run_divine()
 
+    mock_ensure.assert_called_once()
     states = [c.args[0] for c in mock_write.call_args_list]
     assert "divine" in states
+
+
+@patch("kismet.agent.agent.write_state")
+@patch("kismet.agent.agent.ensure_mage_running")
+def test_run_commit_high_k_writes_divine_and_success(mock_ensure, mock_write):
+    agent = _make_agent()
+    agent.git.get_staged_diff.return_value = "diff"
+    ctx = MagicMock(tree_sha="a"*40, parent_sha="b"*40,
+                    author_name="T", author_email="t@t.com",
+                    fixed_timestamp="1714300000 +0800")
+    agent.git.get_context.return_value = ctx
+    agent.divine.generate_message.return_value = ("feat: test", 10, 5)
+    agent.git.compute_hash.return_value = "abc123"
+    agent.divine.divine.return_value = MagicMock(
+        k_value=90, reading="test", tarot_card="X", tarot_position="up",
+        input_tokens=10, output_tokens=5,
+    )
+    agent.git.commit.return_value = "deadbeef"
+
+    agent.run_commit()
+
+    mock_ensure.assert_called_once()
+    states = [c.args[0] for c in mock_write.call_args_list]
+    assert "divine" in states
+    assert "success" in states
+    assert "mining" not in states
+
+
+@patch("kismet.agent.agent.write_state")
+@patch("kismet.agent.agent.ensure_mage_running")
+def test_run_commit_low_k_writes_mining(mock_ensure, mock_write):
+    agent = _make_agent()
+    agent.git.get_staged_diff.return_value = "diff"
+    ctx = MagicMock(tree_sha="a"*40, parent_sha="b"*40,
+                    author_name="T", author_email="t@t.com",
+                    fixed_timestamp="1714300000 +0800")
+    agent.git.get_context.return_value = ctx
+    agent.divine.generate_message.return_value = ("feat: test", 10, 5)
+    agent.git.compute_hash.return_value = "abc123"
+    agent.divine.divine.return_value = MagicMock(
+        k_value=20, reading="test", tarot_card="X", tarot_position="up",
+        input_tokens=10, output_tokens=5,
+    )
+    agent.miner.mine.return_value = True
+    agent.git.commit.return_value = "deadbeef"
+
+    agent.run_commit()
+
+    mock_ensure.assert_called_once()
+    states = [c.args[0] for c in mock_write.call_args_list]
+    assert "divine" in states
+    assert "mining" in states
+    assert "success" in states
