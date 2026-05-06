@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 
@@ -19,7 +18,7 @@ class AnimationController:
             self._cache[state] = self._load(state)
         return self._cache[state]
 
-    def _find_asset(self, state: str, _visited: frozenset = frozenset()) -> Optional[Path]:
+    def _find_asset(self, state: str, _visited: frozenset = frozenset()) -> Path | None:
         """Return path to .gif file or PNG directory, following fallback chain."""
         if state in _visited:
             return None
