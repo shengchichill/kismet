@@ -17,12 +17,12 @@ def write_state(state: str) -> None:
         "state": state,
         "timestamp": time.time(),
         "cli_pid": os.getpid(),
-    }))
+    }), encoding="utf-8")
 
 
 def read_presence() -> Optional[dict]:
     try:
-        return json.loads(PRESENCE_FILE.read_text())
+        return json.loads(PRESENCE_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
@@ -68,7 +68,12 @@ def ensure_mage_running() -> None:
         )
     else:
         kwargs["start_new_session"] = True
-    proc = subprocess.Popen([sys.executable, "-m", "kismet.mage"], **kwargs)
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "kismet.mage"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        **kwargs,
+    )
     MAGE_PID_FILE.write_text(str(proc.pid))
 
 
