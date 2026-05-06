@@ -58,3 +58,15 @@ def curse(targets):
     不指定則使用預設不詳清單（dead/404/f00d/bad）
     """
     _get_agent().run_curse(list(targets))
+
+
+@cli.group()
+def mage():
+    """小法師桌面寵物管理"""
+
+
+@mage.command()
+def stop():
+    """關閉小法師"""
+    from kismet.presence import stop_mage
+    stop_mage()
