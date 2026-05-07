@@ -90,3 +90,13 @@ def stop_mage() -> None:
         pass
     MAGE_PID_FILE.unlink(missing_ok=True)
     click.echo("小法師 已關閉")
+
+
+def detect_mage_mode(config_value: str) -> str:
+    if config_value != "auto":
+        return config_value
+    if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY"):
+        return "terminal"
+    if sys.platform != "win32" and not os.environ.get("DISPLAY"):
+        return "terminal"
+    return "gui"

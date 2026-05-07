@@ -21,6 +21,7 @@ class Config:
     max_mine_attempts: int
     max_message_tokens: int
     _costs_path: str
+    mage_mode: str = "auto"
     _costs_cache: Optional[dict] = None
 
     def get_model_costs(self) -> Optional[ModelCosts]:
@@ -71,4 +72,5 @@ def load_config(costs_path: str = _DEFAULT_COSTS_PATH) -> Config:
         max_mine_attempts=int(os.environ.get("MAX_MINE_ATTEMPTS", "10")),
         max_message_tokens=int(os.environ.get("MAX_MESSAGE_TOKENS", "200")),
         _costs_path=costs_path,
+        mage_mode=os.environ.get("KISMET_MAGE_MODE", "auto"),
     )
