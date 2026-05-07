@@ -1,8 +1,6 @@
 import sys
 from unittest.mock import patch
 
-import pytest
-
 from kismet.presence import detect_mage_mode
 
 
@@ -49,5 +47,6 @@ def test_auto_has_display_linux(monkeypatch):
 def test_auto_windows_no_ssh(monkeypatch):
     monkeypatch.delenv("SSH_CLIENT", raising=False)
     monkeypatch.delenv("SSH_TTY", raising=False)
+    monkeypatch.delenv("DISPLAY", raising=False)
     with patch("sys.platform", "win32"):
         assert detect_mage_mode("auto") == "gui"
