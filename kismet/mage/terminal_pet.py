@@ -31,9 +31,7 @@ class TerminalMagePet:
         self._current_state = ""
 
     def __enter__(self) -> "TerminalMagePet":
-        try:
-            from term_image.image import BlockImage  # noqa: F401
-        except ImportError:
+        if BlockImage is None:
             self._disabled = True
             return self
         self._live = Live(Panel(""), refresh_per_second=10, transient=True)
@@ -80,8 +78,8 @@ class TerminalMagePet:
                     self._current_img.seek(self._frame_idx % self._frame_count)
                     frame_str = str(self._current_img)
                     self._live.update(Panel(Text.from_ansi(frame_str), title="小法師"))
+                    self._frame_idx = (self._frame_idx + 1) % self._frame_count
                 except Exception:
                     pass
-                self._frame_idx = (self._frame_idx + 1) % self._frame_count
 
             self._stop.wait(0.1)

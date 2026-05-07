@@ -1,19 +1,15 @@
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from kismet.mage.terminal_pet import TerminalMagePet
 
 
-def test_import_error_disables(tmp_path, monkeypatch):
-    monkeypatch.setitem(sys.modules, "term_image", None)
-    monkeypatch.setitem(sys.modules, "term_image.image", None)
-    pet = TerminalMagePet(tmp_path)
-    pet.__enter__()
-    assert pet._disabled is True
-    pet.__exit__(None, None, None)  # 不應 raise
+def test_import_error_disables(tmp_path):
+    with patch("kismet.mage.terminal_pet.BlockImage", None):
+        pet = TerminalMagePet(tmp_path)
+        pet.__enter__()
+        assert pet._disabled is True
+        pet.__exit__(None, None, None)  # 不應 raise
 
 
 def test_load_gif_updates_state(tmp_path):
@@ -45,7 +41,7 @@ def test_load_gif_missing_keeps_previous(tmp_path):
     assert pet._current_img is prev_img
 
 
-def test_exit_without_enter_does_not_crash(tmp_path):
+def test_exit_before_enter_does_not_crash(tmp_path):
     pet = TerminalMagePet(tmp_path)
-    pet._disabled = True
-    pet.__exit__(None, None, None)  # _live is None, should not raise
+    # _disabled=False, _thread=None, _live=None — guarded by if checks in __exit__
+    pet.__exit__(None, None, None)  # should not raise
