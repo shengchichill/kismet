@@ -54,8 +54,28 @@ uv tool install --editable ./kismet
 | `KISMET_MODEL` | `gpt-4o-mini` | |
 | `MAX_MINE_ATTEMPTS` | `10` | |
 | `MAX_MESSAGE_TOKENS` | `200` | |
+| `KISMET_MAGE_MODE` | `auto` | |
 
 KISMET calls LLMs via [LiteLLM proxy](https://github.com/BerriAI/litellm), so any model supported by your proxy works.
+
+### 小法師 Pet Mode (`KISMET_MAGE_MODE`)
+
+Controls how the mage companion appears during a run:
+
+| Value | Behaviour |
+|---|---|
+| `auto` | GUI desktop widget on local machines; terminal footer over SSH or without `$DISPLAY` |
+| `gui` | Always show GUI desktop widget (requires a display) |
+| `terminal` | Always show animated GIF footer in the terminal (requires `term-image`) |
+| `off` | No pet |
+
+`auto` detects SSH sessions via `$SSH_CLIENT` / `$SSH_TTY` and falls back to `terminal` mode automatically.
+
+For terminal mode, install the optional renderer:
+
+```bash
+uv add term-image
+```
 
 Set environment variables before running:
 
@@ -144,7 +164,7 @@ kismet curse dead 404
 uv run pytest -v
 ```
 
-37 tests. No live LLM calls in tests (all mocked).
+84 tests. No live LLM calls in tests (all mocked).
 
 ---
 
@@ -155,7 +175,11 @@ KismetAgent          ← flow coordinator
 ├── GitTool          ← staged diff, pure-Python SHA1, fixed-timestamp commit
 ├── DivinationTool   ← LLM: generate message, divine hash, rephrase message
 ├── MinerTool        ← mining loop, token accumulation
-└── RendererTool     ← all Rich/ASCII visuals, interactive prompts
+├── RendererTool     ← all Rich/ASCII visuals, interactive prompts
+└── _start_mage()    ← returns MagePet context manager based on mage_mode
+    ├── gui           → background GUI desktop widget (PyQt6)
+    ├── terminal      → Rich Live footer with GIF animation (term-image)
+    └── off           → no-op
 ```
 
 State flows through a central `KismetSession` dataclass. CLI is a thin Click wrapper.
