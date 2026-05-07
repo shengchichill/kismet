@@ -15,6 +15,7 @@ def _make_agent() -> KismetAgent:
         max_mine_attempts=3,
         max_message_tokens=100,
         _costs_path="nonexistent.yml",
+        mage_mode="gui",
     )
     agent = KismetAgent.__new__(KismetAgent)
     agent.config = config
