@@ -1,8 +1,6 @@
 import contextlib
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from kismet.agent.agent import KismetAgent
 from kismet.config import Config
 from kismet.mage.terminal_pet import TerminalMagePet

@@ -55,7 +55,7 @@ class KismetAgent:
             fixed_timestamp=session.fixed_timestamp,
         )
 
-    def _start_mage(self):
+    def _start_mage(self) -> contextlib.AbstractContextManager:
         mode = detect_mage_mode(self.config.mage_mode)
         if mode == "gui":
             ensure_mage_running()
