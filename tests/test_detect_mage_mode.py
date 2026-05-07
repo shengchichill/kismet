@@ -50,3 +50,9 @@ def test_auto_windows_no_ssh(monkeypatch):
     monkeypatch.delenv("DISPLAY", raising=False)
     with patch("sys.platform", "win32"):
         assert detect_mage_mode("auto") == "gui"
+
+
+def test_unknown_mode_raises():
+    import pytest
+    with pytest.raises(ValueError, match="Unknown mage_mode"):
+        detect_mage_mode("invalid_mode")

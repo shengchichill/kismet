@@ -16,6 +16,10 @@ except ImportError:
     BlockImage = None  # type: ignore[assignment,misc]
 
 
+_FRAME_SLEEP_S = 0.1
+_POLL_EVERY_N_FRAMES = 3
+
+
 class TerminalMagePet:
     """Context manager: Rich Live footer with GIF animation for terminal mode."""
 
@@ -35,7 +39,11 @@ class TerminalMagePet:
             self._disabled = True
             return self
         self._live = Live(Panel(""), refresh_per_second=10, transient=True)
-        self._live.start()
+        try:
+            self._live.start()
+        except Exception:
+            self._disabled = True
+            return self
         self._load_gif("idle")
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -67,7 +75,7 @@ class TerminalMagePet:
         poll_counter = 0
         while not self._stop.is_set():
             poll_counter += 1
-            if poll_counter >= 3:
+            if poll_counter >= _POLL_EVERY_N_FRAMES:
                 poll_counter = 0
                 new_state = compute_mage_state(read_presence())
                 if new_state != self._current_state:
@@ -82,4 +90,4 @@ class TerminalMagePet:
                 except Exception:
                     pass
 
-            self._stop.wait(0.1)
+            self._stop.wait(_FRAME_SLEEP_S)

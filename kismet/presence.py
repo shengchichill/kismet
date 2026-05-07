@@ -92,7 +92,12 @@ def stop_mage() -> None:
     click.echo("小法師 已關閉")
 
 
+_VALID_MAGE_MODES = {"auto", "gui", "terminal", "off"}
+
+
 def detect_mage_mode(config_value: str) -> str:
+    if config_value not in _VALID_MAGE_MODES:
+        raise ValueError(f"Unknown mage_mode {config_value!r}. Valid values: {sorted(_VALID_MAGE_MODES)}")
     if config_value != "auto":
         return config_value
     if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY"):
