@@ -56,6 +56,6 @@ def test_load_config_mage_mode_default(monkeypatch):
 def test_load_config_mage_mode_env_var(monkeypatch):
     monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
     monkeypatch.setenv("LITELLM_API_KEY", "test-key")
-    monkeypatch.setenv("KISMET_MAGE_MODE", "terminal")
+    monkeypatch.setenv("KISMET_MAGE_MODE", "off")
     cfg = load_config()
-    assert cfg.mage_mode == "terminal"
+    assert cfg.mage_mode == "off"

@@ -119,7 +119,7 @@ def stop_mage() -> None:
     click.echo("小法師 已關閉")
 
 
-_VALID_MAGE_MODES = {"auto", "gui", "terminal", "off"}
+_VALID_MAGE_MODES = {"auto", "gui", "off"}
 
 
 def detect_mage_mode(config_value: str) -> str:
@@ -127,9 +127,9 @@ def detect_mage_mode(config_value: str) -> str:
         raise ValueError(f"Unknown mage_mode {config_value!r}. Valid values: {sorted(_VALID_MAGE_MODES)}")
     if config_value != "auto":
         return config_value
+    # In headless environments (SSH, no display server) fall back to off.
     if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY"):
-        return "terminal"
-    # Only headless Linux lacks a display; Mac uses Quartz (no DISPLAY variable).
+        return "off"
     if sys.platform == "linux" and not os.environ.get("DISPLAY"):
-        return "terminal"
+        return "off"
     return "gui"

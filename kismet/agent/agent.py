@@ -6,8 +6,6 @@ from kismet.agent.tools.git import GitContext, GitTool
 from kismet.agent.tools.mine import MinerTool, is_lucky
 from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
-from kismet.mage.animation import ASSETS_DIR
-from kismet.mage.terminal_pet import TerminalMagePet
 from kismet.presence import detect_mage_mode, ensure_mage_running, keep_state_alive, write_state
 
 
@@ -59,9 +57,6 @@ class KismetAgent:
         mode = detect_mage_mode(self.config.mage_mode)
         if mode == "gui":
             ensure_mage_running()
-            return contextlib.nullcontext()
-        if mode == "terminal":
-            return TerminalMagePet(ASSETS_DIR)
         return contextlib.nullcontext()
 
     def _run_divination(self, session: KismetSession) -> None:

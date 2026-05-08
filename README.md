@@ -64,18 +64,11 @@ Controls how the mage companion appears during a run:
 
 | Value | Behaviour |
 |---|---|
-| `auto` | GUI desktop widget on local machines; terminal footer over SSH or without `$DISPLAY` |
+| `auto` | GUI desktop widget on local machines; disabled over SSH or without `$DISPLAY` |
 | `gui` | Always show GUI desktop widget (requires a display) |
-| `terminal` | Always show animated GIF footer in the terminal (requires `term-image`) |
 | `off` | No pet |
 
-`auto` detects SSH sessions via `$SSH_CLIENT` / `$SSH_TTY` and falls back to `terminal` mode automatically.
-
-For terminal mode, install the optional renderer:
-
-```bash
-uv add term-image
-```
+`auto` detects SSH sessions via `$SSH_CLIENT` / `$SSH_TTY` and falls back to `off` automatically.
 
 Set environment variables before running:
 
@@ -178,7 +171,6 @@ KismetAgent          ← flow coordinator
 ├── RendererTool     ← all Rich/ASCII visuals, interactive prompts
 └── _start_mage()    ← returns MagePet context manager based on mage_mode
     ├── gui           → background GUI desktop widget (PyQt6)
-    ├── terminal      → Rich Live footer with GIF animation (term-image)
     └── off           → no-op
 ```
 

@@ -1,9 +1,8 @@
 import contextlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from kismet.agent.agent import KismetAgent
 from kismet.config import Config
-from kismet.mage.terminal_pet import TerminalMagePet
 
 
 def _make_agent(mage_mode: str = "gui") -> KismetAgent:
@@ -28,14 +27,6 @@ def test_start_mage_gui_calls_ensure_running():
         ctx = agent._start_mage()
         mock_ensure.assert_called_once()
         assert isinstance(ctx, contextlib.nullcontext)
-
-
-def test_start_mage_terminal_returns_terminal_pet():
-    agent = _make_agent(mage_mode="terminal")
-    with patch("kismet.agent.agent.detect_mage_mode", return_value="terminal"):
-        ctx = agent._start_mage()
-        assert isinstance(ctx, TerminalMagePet)
-
 
 def test_start_mage_off_no_ensure_running():
     agent = _make_agent(mage_mode="off")
