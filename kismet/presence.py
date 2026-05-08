@@ -31,28 +31,42 @@ def read_presence() -> Optional[dict]:
         return None
 
 
+def _pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        # os.kill(pid, 0) on Windows calls GenerateConsoleCtrlEvent, not a
+        # liveness probe. Processes created with CREATE_NO_WINDOW don't share
+        # the caller's console, so the call always raises OSError regardless of
+        # whether the process is alive. Use OpenProcess + GetExitCodeProcess
+        # instead.
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return bool(ok) and code.value == STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def _is_stale(data: dict) -> bool:
     if time.time() - data["timestamp"] < _STALE_TIMEOUT:
         return False
-    try:
-        os.kill(data["cli_pid"], 0)
-        return False
-    except OSError:
-        return True
+    return not _pid_alive(data["cli_pid"])
 
 
 def compute_mage_state(data: Optional[dict]) -> str:
     if data is None or _is_stale(data):
         return "idle"
     return data.get("state", "idle")
-
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
 
 
 @contextlib.contextmanager
