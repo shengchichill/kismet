@@ -34,7 +34,7 @@ KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–1
 Requires [uv](https://github.com/astral-sh/uv).
 
 ```bash
-git clone https://github.com/yourname/kismet.git
+git clone https://github.com/shengchichill/kismet.git
 ```
 
 Install as a global tool so `kismet` works from any directory:
