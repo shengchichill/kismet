@@ -36,3 +36,16 @@ def test_mage_stop_calls_stop_mage():
         result = _runner().invoke(cli, ["mage", "stop"])
     assert result.exit_code == 0
     mock_stop.assert_called_once()
+
+
+def test_mage_set_valid_state():
+    with patch("kismet.presence.write_state") as mock_write:
+        result = _runner().invoke(cli, ["mage", "set", "divine"])
+    assert result.exit_code == 0
+    mock_write.assert_called_once_with("divine")
+    assert "divine" in result.output
+
+
+def test_mage_set_invalid_state():
+    result = _runner().invoke(cli, ["mage", "set", "badstate"])
+    assert result.exit_code != 0

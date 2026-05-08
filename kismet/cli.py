@@ -88,3 +88,15 @@ def stop():
     """關閉小法師"""
     from kismet.presence import stop_mage
     stop_mage()
+
+
+_MAGE_STATES = ("idle", "divine", "mining", "success", "failed", "blessing", "curse", "exorcism")
+
+
+@mage.command()
+@click.argument("state", type=click.Choice(_MAGE_STATES))
+def set(state):
+    """切換小法師動畫狀態（立即生效）"""
+    from kismet.presence import write_state
+    write_state(state)
+    click.echo(f"小法師 → {state}")
