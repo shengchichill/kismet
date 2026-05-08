@@ -6,6 +6,7 @@ from kismet.config import Config, ModelCosts, load_config
 def test_load_config_reads_env_vars(monkeypatch):
     monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
     monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.delenv("KISMET_MODEL", raising=False)
     cfg = load_config()
     assert cfg.litellm_base_url == "http://proxy:4000"
     assert cfg.litellm_api_key == "test-key"
@@ -41,6 +42,7 @@ def test_get_model_costs_known_model(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
     monkeypatch.setenv("LITELLM_API_KEY", "key")
+    monkeypatch.delenv("KISMET_MODEL", raising=False)
     cfg = load_config(costs_path=str(costs_file))
     costs = cfg.get_model_costs()
     assert costs is not None
@@ -56,3 +58,19 @@ def test_get_model_costs_unknown_model(tmp_path, monkeypatch):
     monkeypatch.setenv("KISMET_MODEL", "unknown-model")
     cfg = load_config(costs_path=str(costs_file))
     assert cfg.get_model_costs() is None
+
+
+def test_load_config_mage_mode_default(monkeypatch):
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.delenv("KISMET_MAGE_MODE", raising=False)
+    cfg = load_config()
+    assert cfg.mage_mode == "auto"
+
+
+def test_load_config_mage_mode_env_var(monkeypatch):
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.setenv("KISMET_MAGE_MODE", "off")
+    cfg = load_config()
+    assert cfg.mage_mode == "off"

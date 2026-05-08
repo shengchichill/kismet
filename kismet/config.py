@@ -23,6 +23,7 @@ class Config:
     _costs_path: str
     require_prayer_pose: bool = True
     prayer_pose_timeout_seconds: float = 15.0
+    mage_mode: str = "auto"
     _costs_cache: Optional[dict] = None
 
     def get_model_costs(self) -> Optional[ModelCosts]:
@@ -75,4 +76,5 @@ def load_config(costs_path: str = _DEFAULT_COSTS_PATH) -> Config:
         require_prayer_pose=os.environ.get("KISMET_REQUIRE_PRAYER_POSE", "1") not in {"0", "false", "False"},
         prayer_pose_timeout_seconds=float(os.environ.get("KISMET_PRAYER_POSE_TIMEOUT", "15")),
         _costs_path=costs_path,
+        mage_mode=os.environ.get("KISMET_MAGE_MODE", "auto"),
     )

@@ -58,3 +58,45 @@ def curse(targets):
     不指定則使用預設不詳清單（dead/404/f00d/bad）
     """
     _get_agent().run_curse(list(targets))
+
+
+@cli.group()
+def mage():
+    """小法師桌面寵物管理"""
+
+
+@mage.command()
+def start():
+    """啟動小法師"""
+    from kismet.presence import detect_mage_mode, ensure_mage_running
+    from kismet.config import load_config
+    try:
+        config = load_config()
+    except ValueError as e:
+        click.echo(f"Configuration error: {e}", err=True)
+        sys.exit(1)
+    mode = detect_mage_mode(config.mage_mode)
+    if mode != "gui":
+        click.echo("小法師 無法在此環境啟動（請確認 KISMET_MAGE_MODE 未設為 off）")
+        return
+    ensure_mage_running()
+    click.echo("小法師 已啟動")
+
+
+@mage.command()
+def stop():
+    """關閉小法師"""
+    from kismet.presence import stop_mage
+    stop_mage()
+
+
+_MAGE_STATES = ("idle", "divine", "mining", "success", "failed", "blessing", "curse", "exorcism")
+
+
+@mage.command()
+@click.argument("state", type=click.Choice(_MAGE_STATES))
+def set(state):
+    """切換小法師動畫狀態（立即生效）"""
+    from kismet.presence import write_state
+    write_state(state)
+    click.echo(f"小法師 → {state}")

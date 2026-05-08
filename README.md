@@ -57,8 +57,21 @@ uv tool install --editable ./kismet
 | `MAX_MESSAGE_TOKENS` | `200` | |
 | `KISMET_REQUIRE_PRAYER_POSE` | `1` | |
 | `KISMET_PRAYER_POSE_TIMEOUT` | `15` | |
+| `KISMET_MAGE_MODE` | `auto` | |
 
 KISMET calls LLMs via [LiteLLM proxy](https://github.com/BerriAI/litellm), so any model supported by your proxy works.
+
+### 小法師 Pet Mode (`KISMET_MAGE_MODE`)
+
+Controls how the mage companion appears during a run:
+
+| Value | Behaviour |
+|---|---|
+| `auto` | GUI desktop widget on local machines; disabled over SSH or without `$DISPLAY` |
+| `gui` | Always show GUI desktop widget (requires a display) |
+| `off` | No pet |
+
+`auto` detects SSH sessions via `$SSH_CLIENT` / `$SSH_TTY` and falls back to `off` automatically.
 
 Set environment variables before running:
 
@@ -133,6 +146,29 @@ kismet curse
 kismet curse dead 404
 ```
 
+### `kismet mage` — 小法師桌面寵物
+
+A desktop pet that animates alongside each kismet operation. Controlled via `KISMET_MAGE_MODE`.
+
+```bash
+kismet mage start                 # 手動啟動小法師
+kismet mage stop                  # 關閉小法師
+kismet mage set <state>           # 手動切換動畫狀態
+```
+
+Available states for `kismet mage set`:
+
+| State | 觸發時機 |
+|---|---|
+| `idle` | 待機 |
+| `divine` | 占卜中 |
+| `mining` | 逆天改運中 |
+| `success` | 改運成功 |
+| `failed` | 改運失敗 |
+| `blessing` | 祈福儀式 |
+| `curse` | 下蠱模式 |
+| `exorcism` | 驅魔儀式 |
+
 ---
 
 ## Lucky Patterns (default)
@@ -151,7 +187,7 @@ kismet curse dead 404
 uv run pytest -v
 ```
 
-37 tests. No live LLM calls in tests (all mocked).
+83 tests. No live LLM calls in tests (all mocked).
 
 ---
 
@@ -162,7 +198,10 @@ KismetAgent          ← flow coordinator
 ├── GitTool          ← staged diff, pure-Python SHA1, fixed-timestamp commit
 ├── DivinationTool   ← LLM: generate message, divine hash, rephrase message
 ├── MinerTool        ← mining loop, token accumulation
-└── RendererTool     ← all Rich/ASCII visuals, interactive prompts
+├── RendererTool     ← all Rich/ASCII visuals, interactive prompts
+└── _start_mage()    ← returns MagePet context manager based on mage_mode
+    ├── gui           → background GUI desktop widget (PyQt6)
+    └── off           → no-op
 ```
 
 State flows through a central `KismetSession` dataclass. CLI is a thin Click wrapper.
