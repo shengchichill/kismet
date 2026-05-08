@@ -55,6 +55,8 @@ class MagePet(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if sys.platform == "darwin":
+            self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
         self.setStyleSheet("background: transparent;")
         self.resize(*_WINDOW_SIZE)
 

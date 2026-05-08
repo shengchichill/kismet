@@ -8,7 +8,7 @@ from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
 from kismet.mage.animation import ASSETS_DIR
 from kismet.mage.terminal_pet import TerminalMagePet
-from kismet.presence import detect_mage_mode, ensure_mage_running, write_state
+from kismet.presence import detect_mage_mode, ensure_mage_running, keep_state_alive, write_state
 
 
 class KismetAgent:
@@ -79,7 +79,8 @@ class KismetAgent:
 
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
         write_state("mining")
-        success = self.miner.mine(session, self.renderer, targets)
+        with keep_state_alive("mining"):
+            success = self.miner.mine(session, self.renderer, targets)
         if success:
             write_state("success")
             self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
@@ -126,7 +127,8 @@ class KismetAgent:
             self.renderer.show_banner()
             session = self._build_session()
             write_state("mining")
-            success = self.miner.mine(session, self.renderer, targets)
+            with keep_state_alive("mining"):
+                success = self.miner.mine(session, self.renderer, targets)
             if success:
                 write_state("success")
                 self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
@@ -164,25 +166,26 @@ class KismetAgent:
                 f"\n  [bold red]⬇ 下蠱模式啟動 — 尋找不詳 hash...[/bold red]\n"
                 f"  目標字串: {effective}"
             )
-            write_state("curse")
             self.renderer.show_mining_start()
 
-            for attempt in range(1, self.config.max_mine_attempts + 1):
-                new_msg, in_tok, out_tok = self.divine.rephrase_message(
-                    session.current_message, attempt, self.config.max_mine_attempts
-                )
-                self._add_tokens(session, in_tok, out_tok)
-                new_hash = self.git.compute_hash(new_msg, self._ctx_from_session(session))
-                cursed = is_lucky(new_hash, effective)
-                self.renderer.show_mining_attempt(attempt, self.config.max_mine_attempts, new_hash, cursed)
-                session.current_message = new_msg
-                session.predicted_hash = new_hash
-                if cursed:
-                    write_state("success")
-                    self.renderer.console.print(f"\n  [red]☠ 下蠱成功！不詳 hash 已就位。[/red]")
-                    actual_hash = self.git.commit(new_msg, self._ctx_from_session(session))
-                    self.renderer.show_committed(actual_hash)
-                    return
+            write_state("curse")
+            with keep_state_alive("curse"):
+                for attempt in range(1, self.config.max_mine_attempts + 1):
+                    new_msg, in_tok, out_tok = self.divine.rephrase_message(
+                        session.current_message, attempt, self.config.max_mine_attempts
+                    )
+                    self._add_tokens(session, in_tok, out_tok)
+                    new_hash = self.git.compute_hash(new_msg, self._ctx_from_session(session))
+                    cursed = is_lucky(new_hash, effective)
+                    self.renderer.show_mining_attempt(attempt, self.config.max_mine_attempts, new_hash, cursed)
+                    session.current_message = new_msg
+                    session.predicted_hash = new_hash
+                    if cursed:
+                        write_state("success")
+                        self.renderer.console.print(f"\n  [red]☠ 下蠱成功！不詳 hash 已就位。[/red]")
+                        actual_hash = self.git.commit(new_msg, self._ctx_from_session(session))
+                        self.renderer.show_committed(actual_hash)
+                        return
 
             write_state("failed")
             self.renderer.console.print("\n  [yellow]下蠱未成功，天地不從。仍以普通 hash 提交。[/yellow]")

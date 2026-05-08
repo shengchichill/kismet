@@ -1,11 +1,13 @@
+import contextlib
 import json
 import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Generator, Optional
 
 import click
 
@@ -53,6 +55,25 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
+@contextlib.contextmanager
+def keep_state_alive(state: str, interval: float = 2.0) -> Generator[None, None, None]:
+    """Refresh presence state in the background while a long-running operation runs.
+    Caller is responsible for the initial write_state(state) call."""
+    stop = threading.Event()
+
+    def _refresh() -> None:
+        while not stop.wait(interval):
+            write_state(state)
+
+    t = threading.Thread(target=_refresh, daemon=True)
+    t.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        t.join(timeout=1.0)
+
+
 def ensure_mage_running() -> None:
     if MAGE_PID_FILE.exists():
         try:
@@ -63,9 +84,15 @@ def ensure_mage_running() -> None:
             pass
     kwargs: dict = {}
     if sys.platform == "win32":
+        # MSDN: CREATE_NO_WINDOW is silently ignored when combined with
+        # DETACHED_PROCESS, so we drop DETACHED_PROCESS here.
+        # STARTUPINFO SW_HIDE is a belt-and-suspenders fallback.
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        kwargs["startupinfo"] = si
         kwargs["creationflags"] = (
-            subprocess.DETACHED_PROCESS
-            | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.CREATE_NO_WINDOW
         )
     else:
@@ -102,6 +129,7 @@ def detect_mage_mode(config_value: str) -> str:
         return config_value
     if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY"):
         return "terminal"
-    if sys.platform != "win32" and not os.environ.get("DISPLAY"):
+    # Only headless Linux lacks a display; Mac uses Quartz (no DISPLAY variable).
+    if sys.platform == "linux" and not os.environ.get("DISPLAY"):
         return "terminal"
     return "gui"
