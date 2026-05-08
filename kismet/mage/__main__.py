@@ -1,4 +1,3 @@
-import os
 import sys
 
 from PyQt6.QtWidgets import QApplication
@@ -13,7 +12,6 @@ def main() -> None:
     except Exception as exc:
         sys.exit(f"kismet.mage: cannot initialise Qt display: {exc}")
 
-    MAGE_PID_FILE.write_text(str(os.getpid()))
     app.setQuitOnLastWindowClosed(False)
     pet = MagePet()
     pet.show()

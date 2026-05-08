@@ -77,7 +77,7 @@ def keep_state_alive(state: str, interval: float = 2.0) -> Generator[None, None,
 def ensure_mage_running() -> None:
     if MAGE_PID_FILE.exists():
         try:
-            pid = int(MAGE_PID_FILE.read_text().strip())
+            pid = int(MAGE_PID_FILE.read_text(encoding="utf-8").strip())
             if _pid_alive(pid):
                 return
         except ValueError:
@@ -103,7 +103,7 @@ def ensure_mage_running() -> None:
         stderr=subprocess.DEVNULL,
         **kwargs,
     )
-    MAGE_PID_FILE.write_text(str(proc.pid))
+    MAGE_PID_FILE.write_text(str(proc.pid), encoding="utf-8")
 
 
 def stop_mage() -> None:
@@ -111,7 +111,7 @@ def stop_mage() -> None:
         click.echo("小法師 not running")
         return
     try:
-        pid = int(MAGE_PID_FILE.read_text().strip())
+        pid = int(MAGE_PID_FILE.read_text(encoding="utf-8").strip())
         os.kill(pid, signal.SIGTERM)
     except (ValueError, OSError):
         pass
