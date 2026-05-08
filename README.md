@@ -139,6 +139,29 @@ kismet curse
 kismet curse dead 404
 ```
 
+### `kismet mage` — 小法師桌面寵物
+
+A desktop pet that animates alongside each kismet operation. Controlled via `KISMET_MAGE_MODE`.
+
+```bash
+kismet mage start                 # 手動啟動小法師
+kismet mage stop                  # 關閉小法師
+kismet mage set <state>           # 手動切換動畫狀態
+```
+
+Available states for `kismet mage set`:
+
+| State | 觸發時機 |
+|---|---|
+| `idle` | 待機 |
+| `divine` | 占卜中 |
+| `mining` | 逆天改運中 |
+| `success` | 改運成功 |
+| `failed` | 改運失敗 |
+| `blessing` | 祈福儀式 |
+| `curse` | 下蠱模式 |
+| `exorcism` | 驅魔儀式 |
+
 ---
 
 ## Lucky Patterns (default)
@@ -157,7 +180,7 @@ kismet curse dead 404
 uv run pytest -v
 ```
 
-84 tests. No live LLM calls in tests (all mocked).
+83 tests. No live LLM calls in tests (all mocked).
 
 ---
 
