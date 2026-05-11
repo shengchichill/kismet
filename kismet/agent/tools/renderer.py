@@ -167,15 +167,15 @@ class RendererTool:
 
     def show_divination_reading(self, hash_str: str, result: DivinationResult) -> None:
         self.console.print()
-        displayed = ""
-        for char in result.reading:
-            displayed += char
-            self.console.print(
-                f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]",
-                end="\r",
-            )
-            time.sleep(0.025)
-        self.console.print(f"  [{CYAN}]「{result.reading}」[/]")
+        with Live(console=self.console, refresh_per_second=40) as live:
+            displayed = ""
+            for char in result.reading:
+                displayed += char
+                live.update(Text.from_markup(
+                    f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
+                ))
+                time.sleep(0.025)
+            live.update(Text.from_markup(f"  [{CYAN}]「{result.reading}」[/]"))
 
     def show_divination_result(self, hash_str: str, result: DivinationResult) -> None:
         k = result.k_value
@@ -226,6 +226,9 @@ class RendererTool:
             self._altar_thread.join(timeout=1.0)
             self._altar_thread = None
         if self._mining_live:
+            # 做最後一次 render，確保 lucky line（若有）被納入最終畫面
+            content = self._altar_content() + "\n" + "\n".join(self._mining_log)
+            self._mining_live.update(Text.from_markup(content))
             self._mining_live.stop()
             self._mining_live = None
 
@@ -237,6 +240,7 @@ class RendererTool:
         max_attempts: int,
         new_k_value: int = 0,
         commentary: str = "",
+        lucky_match: Optional[str] = None,
     ) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
 
@@ -245,10 +249,11 @@ class RendererTool:
         bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
         k_before_color = RED if original_k <= 40 else (GOLD if original_k <= 60 else GREEN)
 
+        new_hash_display = _highlight_hash(session.predicted_hash, lucky_match)
         output = (
             f"\n[{GREEN}]  ✦ ✧ ✦ ✧ ✦  改運成功  ✦ ✧ ✦ ✧ ✦[/]\n\n"
-            f"  [{MUTED}]改運前  [{RED}]{session.original_predicted_hash[:16]}...[/][/]\n"
-            f"  [{MUTED}]改運後  [{GREEN}]{session.predicted_hash[:16]}...[/][/]\n"
+            f"  [{MUTED}]改運前[/]  [{RED}]{session.original_predicted_hash}[/]\n"
+            f"  [{MUTED}]改運後[/]  {new_hash_display}\n"
         )
 
         if original_k > 0 and new_k_value > 0:
@@ -273,15 +278,15 @@ class RendererTool:
 
         if commentary:
             self.console.print(f"\n  [{PURPLE}]✦ 天機批示：[/{PURPLE}]")
-            displayed = ""
-            for char in commentary:
-                displayed += char
-                self.console.print(
-                    f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]",
-                    end="\r",
-                )
-                time.sleep(0.02)
-            self.console.print(f"  [{CYAN}]「{commentary}」[/]")
+            with Live(console=self.console, refresh_per_second=50) as live:
+                displayed = ""
+                for char in commentary:
+                    displayed += char
+                    live.update(Text.from_markup(
+                        f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
+                    ))
+                    time.sleep(0.02)
+                live.update(Text.from_markup(f"  [{CYAN}]「{commentary}」[/]"))
 
     def show_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"

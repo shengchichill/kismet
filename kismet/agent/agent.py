@@ -76,9 +76,9 @@ class KismetAgent:
 
     def _generate_success_report(
         self, session: KismetSession, targets: list[str]
-    ) -> tuple[int, str]:
+    ) -> tuple[int, str, str]:
         """Re-divine the lucky hash and generate a mystical report.
-        Returns (new_k_value, commentary).
+        Returns (new_k_value, commentary, lucky_match).
         """
         with self.renderer.divination_spinner(session.predicted_hash):
             new_result = self.divine.divine(
@@ -86,13 +86,20 @@ class KismetAgent:
             )
         self._add_tokens(session, new_result.input_tokens, new_result.output_tokens)
 
+        # LLM 受 prompt anchoring 影響，常在改運後仍回傳相同 K-value。
+        # 若沒有自然上升，套用 deterministic floor 確保改運有意義。
+        new_k = new_result.k_value
+        if new_k <= session.k_value:
+            boost = max(15, (100 - session.k_value) // 3)
+            new_k = min(95, session.k_value + boost)
+
         lucky_match = find_lucky_match(session.predicted_hash, targets)
         try:
             commentary, in_tok, out_tok = self.divine.generate_mining_report(
                 original_hash=session.original_predicted_hash,
                 new_hash=session.predicted_hash,
                 original_k=session.k_value,
-                new_k=new_result.k_value,
+                new_k=new_k,
                 lucky_match=lucky_match or "",
                 attempts=session.mine_attempts,
                 tokens_burned=session.total_input_tokens + session.total_output_tokens,
@@ -101,7 +108,7 @@ class KismetAgent:
         except Exception:
             commentary = ""
 
-        return new_result.k_value, commentary
+        return new_k, commentary, lucky_match or ""
 
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
         write_state("mining")
@@ -109,12 +116,13 @@ class KismetAgent:
             success = self.miner.mine(session, self.renderer, targets)
         if success:
             write_state("success")
-            new_k_value, commentary = self._generate_success_report(session, targets)
+            new_k_value, commentary, lucky_match = self._generate_success_report(session, targets)
             self.renderer.show_success(
                 session,
                 max_attempts=self.config.max_mine_attempts,
                 new_k_value=new_k_value,
                 commentary=commentary,
+                lucky_match=lucky_match or None,
             )
         else:
             write_state("failed")
@@ -163,12 +171,13 @@ class KismetAgent:
                 success = self.miner.mine(session, self.renderer, targets)
             if success:
                 write_state("success")
-                new_k_value, commentary = self._generate_success_report(session, targets)
+                new_k_value, commentary, lucky_match = self._generate_success_report(session, targets)
                 self.renderer.show_success(
                     session,
                     max_attempts=self.config.max_mine_attempts,
                     new_k_value=new_k_value,
                     commentary=commentary,
+                    lucky_match=lucky_match or None,
                 )
             else:
                 write_state("failed")
