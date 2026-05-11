@@ -1,3 +1,4 @@
+import threading
 import time
 from collections import deque
 from contextlib import contextmanager
@@ -5,7 +6,6 @@ from typing import Optional
 
 from rich.console import Console
 from rich.live import Live
-from rich.panel import Panel
 from rich.status import Status
 from rich.text import Text
 
@@ -43,16 +43,31 @@ EXORCISM_ART = f"""[{RED}]
   「雖違宇宙法則，誠意已達，特此驅魔。」
 [/]"""
 
-_MINING_ALTAR = (
+_ALTAR_HEADER = (
     f"\n[{PURPLE}]  ╔════════════ ⚒ 逆天改運中 ⚒ ════════════╗[/]\n"
     f"[{GOLD}]  ║  正在燃燒 Token 祭天，請耐心等候...      ║[/]\n"
     f"[{PURPLE}]  ╚════════════════════════════════════════╝[/]\n\n"
-    f"[{MUTED}]           ~   ~  ~    ~  ~[/]\n"
-    f"[{GOLD}]           | | | | | | | | | |[/]\n"
+)
+
+_ALTAR_BODY = (
     f"[{GOLD}]          _|_|_|_|_|_|_|_|_|__[/]\n"
     f"[{GOLD}]         |  🔥 焚燒 Token 祭壇 🔥  |[/]\n"
     f"[{GOLD}]         |________________________|[/]\n"
 )
+
+# Four animation frames: calm → rising → high → sparks
+_ALTAR_FLAMES = [
+    (f"[{MUTED}]            ~   ~  ~    ~  ~[/]\n"
+     f"[{GOLD}]            | | | | | | | | |[/]\n"),
+    (f"[{GOLD}]          ~ ~ ~  ~~ ~ ~ ~  ~[/]\n"
+     f"[{RED}]            | | || | | || | |[/]\n"),
+    (f"[{RED}]         ~~ ~ ~~  ~~ ~ ~~  ~[/]\n"
+     f"[{RED}]          || | ||  | || | ||[/]\n"),
+    (f"[{PINK}]       *  ~ ~~  ~ * ~~ ~ *[/]\n"
+     f"[{RED}]          ~ || | || ~ | || ~[/]\n"),
+]
+
+_BAD_STRINGS = {"dead", "404", "bad", "f001", "0ff", "fa11", "beef", "deaf"}
 
 
 def _tarot_card_row(cards: list[tuple[str, str, str]]) -> str:
@@ -86,6 +101,25 @@ class RendererTool:
         self.console = Console()
         self._mining_live: Optional[Live] = None
         self._mining_log: deque = deque(maxlen=10)
+        self._altar_frame: int = 0
+        self._altar_stop: threading.Event = threading.Event()
+        self._altar_thread: Optional[threading.Thread] = None
+
+    def _altar_content(self) -> str:
+        flames = _ALTAR_FLAMES[self._altar_frame % len(_ALTAR_FLAMES)]
+        return _ALTAR_HEADER + flames + _ALTAR_BODY
+
+    def _animate_altar(self) -> None:
+        while not self._altar_stop.is_set():
+            self._altar_frame += 1
+            live = self._mining_live
+            if live is not None:
+                content = self._altar_content() + "\n" + "\n".join(self._mining_log)
+                try:
+                    live.update(Text.from_markup(content))
+                except Exception:
+                    pass
+            self._altar_stop.wait(timeout=0.35)
 
     def show_banner(self) -> None:
         self.console.print()
@@ -94,7 +128,7 @@ class RendererTool:
         time.sleep(0.3)
 
     def show_divination_animation(self, hash_str: str) -> None:
-        bad_chars = any(s in hash_str for s in ["404", "dead", "bad", "f00d"])
+        bad_chars = any(s in hash_str.lower() for s in _BAD_STRINGS)
 
         with Live(console=self.console, refresh_per_second=4) as live:
             # Frame A: cards dealing
@@ -104,7 +138,7 @@ class RendererTool:
                 + _tarot_card_row(cards_a)
                 + f"\n\n[{MUTED}]  hash: [{CYAN}]{hash_str}[/]   感應中 ⟳[/]"
             )
-            live.update(Panel(text, border_style=PURPLE, padding=(0, 1), expand=False))
+            live.update(text)
             time.sleep(1.0)
 
             # Frame B: all revealed
@@ -119,7 +153,7 @@ class RendererTool:
                 + _tarot_card_row(cards_b)
                 + (f"\n\n[{RED}]  ⚠  水晶球異動：hash 含不詳字符[/]" if bad_chars else f"\n\n[{GREEN}]  ✦  氣場穩定[/]")
             )
-            live.update(Panel(text2, border_style=crystal_color, padding=(0, 1), expand=False))
+            live.update(text2)
             time.sleep(1.2)
 
     @contextmanager
@@ -164,13 +198,17 @@ class RendererTool:
             f"  [{MUTED}]◈ 塔羅：{result.tarot_card} {result.tarot_position}[/]"
         )
 
-    # ── Mining (Live rolling display) ─────────────────────────────────────────
+    # ── Mining (Live rolling display with animated altar) ─────────────────────
 
     def show_mining_start(self) -> None:
         self._mining_log.clear()
-        self._mining_live = Live(console=self.console, refresh_per_second=4)
+        self._altar_frame = 0
+        self._altar_stop.clear()
+        self._mining_live = Live(console=self.console, refresh_per_second=8)
         self._mining_live.start()
-        self._mining_live.update(Text.from_markup(_MINING_ALTAR))
+        self._mining_live.update(Text.from_markup(self._altar_content()))
+        self._altar_thread = threading.Thread(target=self._animate_altar, daemon=True)
+        self._altar_thread.start()
 
     def show_mining_attempt(
         self, attempt: int, max_attempts: int, hash_str: str, lucky: bool, target: Optional[str] = None
@@ -180,33 +218,70 @@ class RendererTool:
             line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{GREEN}]✦ 吉兆！含 {target or '幸運字串'}[/]"
         else:
             line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{RED}]✗ 無緣[/]"
-
         self._mining_log.append(line)
 
-        if self._mining_live:
-            content = _MINING_ALTAR + "\n" + "\n".join(self._mining_log)
-            self._mining_live.update(Text.from_markup(content))
-
     def show_mining_end(self) -> None:
+        self._altar_stop.set()
+        if self._altar_thread:
+            self._altar_thread.join(timeout=1.0)
+            self._altar_thread = None
         if self._mining_live:
             self._mining_live.stop()
             self._mining_live = None
 
     # ── Outcomes ─────────────────────────────────────────────────────────────
 
-    def show_success(self, session, max_attempts: int) -> None:
+    def show_success(
+        self,
+        session,
+        max_attempts: int,
+        new_k_value: int = 0,
+        commentary: str = "",
+    ) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
-        self.console.print(
+
+        original_k = session.k_value
+        filled_orig = int(original_k / 10)
+        bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
+        k_before_color = RED if original_k <= 40 else (GOLD if original_k <= 60 else GREEN)
+
+        output = (
             f"\n[{GREEN}]  ✦ ✧ ✦ ✧ ✦  改運成功  ✦ ✧ ✦ ✧ ✦[/]\n\n"
             f"  [{MUTED}]改運前  [{RED}]{session.original_predicted_hash[:16]}...[/][/]\n"
-            f"  [{MUTED}]改運後  [{GREEN}]{session.predicted_hash[:16]}...[/][/]\n\n"
-            f"  [{PURPLE}]┌──────────── 誠心敬意報告 ────────────┐[/]\n"
+            f"  [{MUTED}]改運後  [{GREEN}]{session.predicted_hash[:16]}...[/][/]\n"
+        )
+
+        if original_k > 0 and new_k_value > 0:
+            filled_new = int(new_k_value / 10)
+            bar_new = "█" * filled_new + "░" * (10 - filled_new)
+            k_after_color = GREEN if new_k_value >= 60 else (GOLD if new_k_value >= 40 else RED)
+            output += (
+                f"\n  [{MUTED}]◈ K-value 對照[/]\n"
+                f"  [{k_before_color}]    改運前  {bar_orig}  {original_k:3d} / 100[/]\n"
+                f"  [{k_after_color}]    改運後  {bar_new}  {new_k_value:3d} / 100[/]\n"
+            )
+
+        output += (
+            f"\n  [{PURPLE}]┌──────────── 誠心敬意報告 ────────────┐[/]\n"
             f"  [{PURPLE}]│[/]  [{CYAN}]改運嘗試次數  {session.mine_attempts} / {max_attempts}[/]                [{PURPLE}]│[/]\n"
             f"  [{PURPLE}]│[/]  [{CYAN}]燃燒 Token    {session.total_input_tokens + session.total_output_tokens:,}[/]              [{PURPLE}]│[/]\n"
             f"  [{PURPLE}]│[/]  [{GOLD}]花費誠意      {cost_str}  💸[/]       [{PURPLE}]│[/]\n"
             f"  [{PURPLE}]│[/]  [{MUTED}]花錢消災，物有所值[/]               [{PURPLE}]│[/]\n"
             f"  [{PURPLE}]└──────────────────────────────────────┘[/]"
         )
+        self.console.print(output)
+
+        if commentary:
+            self.console.print(f"\n  [{PURPLE}]✦ 天機批示：[/{PURPLE}]")
+            displayed = ""
+            for char in commentary:
+                displayed += char
+                self.console.print(
+                    f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]",
+                    end="\r",
+                )
+                time.sleep(0.02)
+            self.console.print(f"  [{CYAN}]「{commentary}」[/]")
 
     def show_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"

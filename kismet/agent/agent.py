@@ -3,10 +3,12 @@ import contextlib
 from kismet.agent.session import KismetSession
 from kismet.agent.tools.divine import DivinationTool
 from kismet.agent.tools.git import GitContext, GitTool
-from kismet.agent.tools.mine import MinerTool, is_lucky
+from kismet.agent.tools.mine import MinerTool, find_lucky_match, is_lucky
 from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
 from kismet.presence import detect_mage_mode, ensure_mage_running, keep_state_alive, write_state
+
+_DEFAULT_CURSE = ["dead", "404", "bad", "f001", "0ff", "fa11", "beef", "deaf"]
 
 
 class KismetAgent:
@@ -72,13 +74,48 @@ class KismetAgent:
         self.renderer.show_divination_reading(session.predicted_hash, result)
         self.renderer.show_divination_result(session.predicted_hash, result)
 
+    def _generate_success_report(
+        self, session: KismetSession, targets: list[str]
+    ) -> tuple[int, str]:
+        """Re-divine the lucky hash and generate a mystical report.
+        Returns (new_k_value, commentary).
+        """
+        with self.renderer.divination_spinner(session.predicted_hash):
+            new_result = self.divine.divine(
+                session.predicted_hash, session.current_message, session.diff
+            )
+        self._add_tokens(session, new_result.input_tokens, new_result.output_tokens)
+
+        lucky_match = find_lucky_match(session.predicted_hash, targets)
+        try:
+            commentary, in_tok, out_tok = self.divine.generate_mining_report(
+                original_hash=session.original_predicted_hash,
+                new_hash=session.predicted_hash,
+                original_k=session.k_value,
+                new_k=new_result.k_value,
+                lucky_match=lucky_match or "",
+                attempts=session.mine_attempts,
+                tokens_burned=session.total_input_tokens + session.total_output_tokens,
+            )
+            self._add_tokens(session, in_tok, out_tok)
+        except Exception:
+            commentary = ""
+
+        return new_result.k_value, commentary
+
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
         write_state("mining")
         with keep_state_alive("mining"):
             success = self.miner.mine(session, self.renderer, targets)
         if success:
             write_state("success")
-            self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
+            new_k_value, commentary = self._generate_success_report(session, targets)
+            self.renderer.show_success(
+                session,
+                max_attempts=self.config.max_mine_attempts,
+                new_k_value=new_k_value,
+                commentary=commentary,
+            )
         else:
             write_state("failed")
             self.renderer.show_blessing(session)
@@ -126,7 +163,13 @@ class KismetAgent:
                 success = self.miner.mine(session, self.renderer, targets)
             if success:
                 write_state("success")
-                self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
+                new_k_value, commentary = self._generate_success_report(session, targets)
+                self.renderer.show_success(
+                    session,
+                    max_attempts=self.config.max_mine_attempts,
+                    new_k_value=new_k_value,
+                    commentary=commentary,
+                )
             else:
                 write_state("failed")
                 self.renderer.show_blessing(session)
@@ -153,7 +196,6 @@ class KismetAgent:
     def run_curse(self, targets: list[str]) -> None:
         """Reverse mine: find an unlucky hash and commit it."""
         with self._start_mage():
-            _DEFAULT_CURSE = ["dead", "404", "f00d", "bad"]
             effective = targets if targets else _DEFAULT_CURSE
             self.renderer.show_banner()
             session = self._build_session()

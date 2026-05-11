@@ -7,39 +7,249 @@ if TYPE_CHECKING:
     from kismet.agent.tools.git import GitTool
     from kismet.config import Config
 
+# Sorted longest-first to avoid partial matches
+_LUCKY_STRINGS = [
+    "c0ffee",  # 咖啡代表生命之水
+    "b0ba",    # 珍珠奶茶
+    "c001",    # cool
+    "5afe",    # safe
+    "c0de",    # code
+    "fafa",    # 發發
+    "feed",    # 有人餵食
+    "face",    # 有頭有臉
+    "babe",    # 寶貝
+    "baba",    # 爸爸，有爸爸當靠山
+    "cafe",    # 咖啡因加持
+    "f00d",    # 食物吃很飽
+    "168",     # 一路發
+    "ace",     # 王牌
+    "add",     # 增加運勢
+    "aba",     # 阿爸，有爸爸當靠山
+]
+
+_UNLUCKY_STRINGS = [
+    "dead",
+    "deaf",
+    "beef",
+    "f001",   # fool
+    "fa11",   # fall
+    "0ff",    # off
+    "404",
+    "bad",
+]
+
+
+# ── Low-level pattern helpers ─────────────────────────────────────────────────
+
+def _find_repeated_run(
+    hash_str: str,
+    min_len: int = 3,
+    only_char: Optional[str] = None,
+    skip_char: Optional[str] = None,
+) -> Optional[str]:
+    """Find first run of identical chars >= min_len.
+    only_char: only match runs of this specific character.
+    skip_char: skip runs of this specific character.
+    """
+    h = hash_str.lower()
+    n = len(h)
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and h[j] == h[i]:
+            j += 1
+        run_len = j - i
+        if run_len >= min_len:
+            if only_char is not None and h[i] != only_char.lower():
+                i = j
+                continue
+            if skip_char is not None and h[i] == skip_char.lower():
+                i = j
+                continue
+            return hash_str[i:j]
+        i = j
+    return None
+
+
+def _find_sequential_run(hash_str: str, min_len: int = 3, ascending: bool = True) -> Optional[str]:
+    """Find first run of consecutive ascending or descending chars >= min_len."""
+    h = hash_str.lower()
+    n = len(h)
+    delta = 1 if ascending else -1
+    i = 0
+    while i <= n - min_len:
+        j = i + 1
+        while j < n and ord(h[j]) - ord(h[j - 1]) == delta:
+            j += 1
+        if j - i >= min_len:
+            return hash_str[i:j]
+        i += 1
+    return None
+
+
+def _find_repeated_pair(hash_str: str, patterns: list[str], min_repeats: int = 2) -> Optional[str]:
+    """Find a pattern from patterns repeated consecutively min_repeats+ times."""
+    h = hash_str.lower()
+    for pat in patterns:
+        repeated = pat * min_repeats
+        if repeated in h:
+            idx = h.find(repeated)
+            end = idx + len(repeated)
+            while h[end : end + len(pat)] == pat:
+                end += len(pat)
+            return hash_str[idx:end]
+    return None
+
+
+def _find_mountain_run(hash_str: str, min_arm: int = 2) -> Optional[str]:
+    """Find an ascending-then-descending (mountain) sequence.
+    Requires at least min_arm steps up and min_arm steps down (minimum 2*min_arm+1 chars).
+    e.g. 'abcba', '12321' with min_arm=2.
+    Represents 功德圓滿，有始有終.
+    """
+    h = hash_str.lower()
+    n = len(h)
+    for i in range(n):
+        # Find end of ascending run from i
+        j = i + 1
+        while j < n and ord(h[j]) - ord(h[j - 1]) == 1:
+            j += 1
+        if j - i < min_arm + 1:  # need at least min_arm ascending steps
+            continue
+        # Peak is at j-1; now find the descending arm
+        k = j
+        while k < n and ord(h[k]) - ord(h[k - 1]) == -1:
+            k += 1
+        if k - (j - 1) < min_arm + 1:  # need at least min_arm descending steps
+            continue
+        return hash_str[i:k]
+    return None
+
+
+# ── Shielding helpers ─────────────────────────────────────────────────────────
+
+def _lucky_covered_ranges(hash_str: str) -> list[tuple[int, int]]:
+    """Return (start, end) index ranges in hash_str covered by lucky special strings."""
+    h = hash_str.lower()
+    ranges: list[tuple[int, int]] = []
+    for ls in _LUCKY_STRINGS:
+        pos = h.find(ls)
+        while pos >= 0:
+            ranges.append((pos, pos + len(ls)))
+            pos = h.find(ls, pos + 1)
+    return ranges
+
+
+def _covered_by_range(pos: int, length: int, ranges: list[tuple[int, int]]) -> bool:
+    """Return True if [pos, pos+length) is fully contained within any range."""
+    return any(start <= pos and pos + length <= end for start, end in ranges)
+
+
+# ── Public pattern matchers ───────────────────────────────────────────────────
+
+def find_unlucky_match(hash_str: str) -> Optional[str]:
+    """Return the first unshielded unlucky substring, or None if not unlucky.
+
+    Shielding rules:
+    - Unlucky special strings that fall entirely inside a lucky special string are ignored
+      (e.g. '0ff' inside 'c0ffee' does not count).
+    - Descending sequences that are fully contained within a mountain run are ignored
+      (the right arm of a mountain is part of the 功德圓滿 pattern, not an omen of doom).
+    """
+    h = hash_str.lower()
+    lucky_ranges = _lucky_covered_ranges(hash_str)
+
+    # Special unlucky strings — skip if shielded by a lucky string
+    for s in _UNLUCKY_STRINGS:
+        pos = h.find(s)
+        while pos >= 0:
+            if not _covered_by_range(pos, len(s), lucky_ranges):
+                return hash_str[pos : pos + len(s)]
+            pos = h.find(s, pos + 1)
+
+    # Triple+ fours (no shielding needed — no lucky string contains '4')
+    match = _find_repeated_run(hash_str, min_len=3, only_char="4")
+    if match:
+        return match
+
+    # Descending sequence — shield if it is the right arm of a mountain
+    mountain = _find_mountain_run(hash_str)
+    mountain_range: Optional[tuple[int, int]] = None
+    if mountain:
+        m_start = h.find(mountain.lower())
+        mountain_range = (m_start, m_start + len(mountain))
+
+    n = len(h)
+    i = 0
+    while i <= n - 3:
+        j = i + 1
+        while j < n and ord(h[j]) - ord(h[j - 1]) == -1:
+            j += 1
+        run_len = j - i
+        if run_len >= 3:
+            if mountain_range is not None and _covered_by_range(i, run_len, [mountain_range]):
+                i = j  # shielded — skip past this run
+            else:
+                return hash_str[i:j]
+        else:
+            i += 1
+
+    # Repeated 87 or 78 (twice or more)
+    match = _find_repeated_pair(hash_str, ["87", "78"], min_repeats=2)
+    if match:
+        return match
+
+    return None
+
 
 def find_lucky_match(hash_str: str, targets: list[str]) -> Optional[str]:
-    """Return the matched lucky substring, or None if not lucky."""
+    """Return the matched lucky substring, or None if not lucky.
+
+    When using default patterns:
+    - Unlucky patterns override lucky patterns (unless shielded — see find_unlucky_match).
+    - Mountain (ascending then descending, e.g. 'abcba') is a lucky pattern; its descending
+      arm is shielded inside find_unlucky_match so it does not trigger the override.
+    """
     if targets:
         for t in targets:
             if t.lower() in hash_str.lower():
                 idx = hash_str.lower().find(t.lower())
                 return hash_str[idx : idx + len(t)]
         return None
+
+    # Unlucky (unshielded) overrides all lucky patterns
+    if find_unlucky_match(hash_str) is not None:
+        return None
+
+    h = hash_str.lower()
+
+    # Special lucky strings (longest first to avoid partial match)
     for s in _LUCKY_STRINGS:
-        if s in hash_str:
-            return s
-    for i in range(len(hash_str) - 2):
-        if (
-            ord(hash_str[i + 1]) == ord(hash_str[i]) + 1
-            and ord(hash_str[i + 2]) == ord(hash_str[i]) + 2
-        ):
-            return hash_str[i : i + 3]
-    n = len(hash_str)
-    for length in range(4, n + 1):
-        for start in range(n - length + 1):
-            sub = hash_str[start : start + length]
-            if sub == sub[::-1]:
-                return sub
+        if s in h:
+            idx = h.find(s)
+            return hash_str[idx : idx + len(s)]
+
+    # Mountain: ascending then descending (功德圓滿，有始有終)
+    match = _find_mountain_run(hash_str)
+    if match:
+        return match
+
+    # Ascending sequence of 3+ chars
+    match = _find_sequential_run(hash_str, min_len=3, ascending=True)
+    if match:
+        return match
+
+    # Repeated same char 3+ (runs of '4' don't count — that's unlucky)
+    match = _find_repeated_run(hash_str, min_len=3, skip_char="4")
+    if match:
+        return match
+
     return None
 
 
 def is_lucky(hash_str: str, targets: list[str]) -> bool:
     """Return True if hash_str matches custom targets or default lucky patterns."""
     return find_lucky_match(hash_str, targets) is not None
-
-
-_LUCKY_STRINGS = ["888", "168", "666", "777"]
 
 
 class MinerTool:
