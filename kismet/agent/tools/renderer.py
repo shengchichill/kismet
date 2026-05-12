@@ -85,7 +85,7 @@ _ALTAR_ASH_N    = "║ " + "░ " * 15 + "║"        # frames 0-1: static ash
 _ALTAR_ASH_R    = "║ ░ · ░ ░ · ░ ░ · ░ ░ · ░ ░ · ░ ║"  # frame 2: red embers
 _ALTAR_ASH_P    = "║ · ░ · ░ · ░ · ░ · ░ · ░ · ░ · ║"  # frame 3: purple embers
 _ALTAR_BOT      = "╚═══════════════════════════════╝"
-_ALTAR_BASE     = "    ████    ████    ████    ████  "
+_ALTAR_BASE     = "    ████    ████    ████    ████ "
 _ORANGE         = "#fb8c00"   # incense stick colour
 _INCENSE_TIP_C  = "#ef9a9a"   # incense tip colour
 _BROWN          = "#4e342e"   # base stone colour
@@ -103,6 +103,7 @@ _ALTAR_FRAME_DATA: list[tuple[str, list[str], str, str]] = [
 
 def _smoke_row(shift: int) -> str:
     """One 33-char row of incense smoke; shift > 0 moves wisps left (upward drift)."""
+    assert 0 <= shift <= 6, f"shift must be 0–6, got {shift}"
     return " " * (6 - shift) + "≀" + "    ≀" * 4 + " " * (6 + shift)
 
 
