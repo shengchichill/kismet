@@ -158,3 +158,34 @@ def test_altar_frame_smoke_row_counts():
     from kismet.agent.tools.renderer import _ALTAR_FRAME_DATA
     for i, (_, shades, _, _) in enumerate(_ALTAR_FRAME_DATA):
         assert len(shades) == i + 1, f"Frame {i} should have {i+1} smoke row(s)"
+
+
+def test_show_success_report_not_full_width():
+    import re
+    from unittest.mock import MagicMock
+    from kismet.agent.tools.renderer import RendererTool
+
+    renderer = RendererTool()
+    output = StringIO()
+    renderer.console = Console(file=output, force_terminal=True, width=200, no_color=True)
+
+    session = MagicMock()
+    session.total_cost_usd = 0.01
+    session.original_predicted_hash = "abc"
+    session.predicted_hash = "def"
+    session.mine_attempts = 5
+    session.k_value = 50
+    session.total_input_tokens = 100
+    session.total_output_tokens = 50
+
+    renderer.show_success(session, max_attempts=100, new_k_value=75, lucky_match="a")
+
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    plain = ansi_escape.sub("", output.getvalue())
+    report_lines = [
+        l for l in plain.splitlines()
+        if "改運嘗試次數" in l or "燃燒 Token" in l or "花費誠意" in l
+    ]
+    assert report_lines, "Report rows not found in output"
+    for line in report_lines:
+        assert len(line) < 100, f"Report line too wide ({len(line)}): {line!r}"

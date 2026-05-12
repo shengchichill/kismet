@@ -476,7 +476,7 @@ class RendererTool:
         report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
         report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
         report_table.add_row(f"[{MUTED}]花錢消災，物有所值[/]", "")
-        self.console.print(Panel(report_table, title=f"[{PURPLE}]誠心敬意報告[/]", border_style=PURPLE))
+        self.console.print(Panel(report_table, title=f"[{PURPLE}]誠心敬意報告[/]", border_style=PURPLE, expand=False))
 
         if commentary:
             self.console.print(f"\n  [{PURPLE}]✦ 天機批示：[/{PURPLE}]")
