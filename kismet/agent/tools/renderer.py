@@ -197,6 +197,7 @@ class RendererTool:
         self._altar_frame: int = 0
         self._altar_stop: threading.Event = threading.Event()
         self._altar_thread: Optional[threading.Thread] = None
+        self._curse_mode: bool = False
 
     def _altar_content(self) -> Group:
         altar_color, smoke_shades, ash_line, ash_color = (
@@ -205,7 +206,10 @@ class RendererTool:
 
         lines: list[str] = []
 
-        # Smoke rows — more rows per frame, drifting left as they rise
+        # Smoke rows — pad to max 4 rows so total height stays constant across frames
+        _MAX_SMOKE_ROWS = 4
+        for _ in range(_MAX_SMOKE_ROWS - len(smoke_shades)):
+            lines.append(" " * 33)
         for i, shade in enumerate(smoke_shades):
             shift = len(smoke_shades) - 1 - i  # bottom row = shift 0 (nearest tips)
             lines.append(f"[{shade}]{_smoke_row(shift)}[/]")
@@ -225,14 +229,22 @@ class RendererTool:
         lines.append(f"[{altar_color}]{_ALTAR_BOT}[/]")
         lines.append(f"[{_BROWN}]{_ALTAR_BASE}[/]")
 
-        altar_art = Align.center(Text.from_markup("\n".join(lines)))
-        header = Panel(
-            Align.center("正在燃燒 Token 祭天，請耐心等候..."),
-            title=f"[{GOLD}]⚒ 逆天改運中 ⚒[/]",
-            border_style=PURPLE,
-            expand=False,
-        )
-        return Group(header, altar_art)
+        altar_art = Text.from_markup("\n".join("   " + line for line in lines))
+        if self._curse_mode:
+            header = Panel(
+                "正在施術下蠱，等待不詳 hash 降臨...",
+                title=f"[{RED}]☠ 下蠱施術中 ☠[/]",
+                border_style=RED,
+                expand=False,
+            )
+        else:
+            header = Panel(
+                "正在燃燒 Token 祭天，請耐心等候...",
+                title=f"[{GOLD}]⚒ 逆天改運中 ⚒[/]",
+                border_style=PURPLE,
+                expand=False,
+            )
+        return Group(Text(""), header, altar_art, Text(""))
 
     def _animate_altar(self) -> None:
         while not self._altar_stop.is_set():
@@ -388,15 +400,21 @@ class RendererTool:
 
         filled = int(k / 10)
         bar = "█" * filled + "░" * (10 - filled)
+        tarot_lines = "\n".join(
+            f"  [{MUTED}]    {pz}  {_TAROT_EMOJI.get(c, '✦')} {_TAROT_ZH.get(c, c)} {p}[/]"
+            for (c, p), pz in zip(result.tarot_cards, ["過去", "現在", "未來"])
+        )
         self.console.print(
             f"\n  [{bar_color}]◈ K-value：{bar}  {k} / 100[/]\n"
             f"  [{bar_color}]◈ 運勢等級：{label}[/]\n"
-            f"  [{MUTED}]◈ 塔羅：{result.tarot_card} {result.tarot_position}[/]"
+            f"  [{MUTED}]◈ 塔羅牌陣：[/]\n"
+            f"{tarot_lines}"
         )
 
     # ── Mining (Live rolling display with animated altar) ─────────────────────
 
-    def show_mining_start(self) -> None:
+    def show_mining_start(self, curse: bool = False) -> None:
+        self._curse_mode = curse
         self._mining_log.clear()
         self._altar_frame = 0
         self._altar_stop.clear()
@@ -409,11 +427,18 @@ class RendererTool:
     def show_mining_attempt(
         self, attempt: int, max_attempts: int, hash_str: str, lucky: bool, target: Optional[str] = None
     ) -> None:
-        highlighted = _highlight_hash(hash_str, target if lucky else None)
-        if lucky:
-            line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{GREEN}]✦ 吉兆！含 {target or '幸運字串'}[/]"
+        if self._curse_mode:
+            highlighted = _highlight_hash(hash_str, unlucky_match=target if lucky else None)
+            if lucky:
+                line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{RED}]☠ 中蠱！含 {target or '不詳字串'}[/]"
+            else:
+                line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{MUTED}]✗ 尚未中蠱[/]"
         else:
-            line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{RED}]✗ 無緣[/]"
+            highlighted = _highlight_hash(hash_str, target if lucky else None)
+            if lucky:
+                line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  hash: {highlighted}  [{GREEN}]✦ 吉兆！含 {target or '幸運字串'}[/]"
+            else:
+                line = f"  [{MUTED}]嘗試 {attempt}/{max_attempts}[/]  [{MUTED}]hash:[/] {highlighted}  [{RED}]✗ 無緣[/]"
         self._mining_log.append(line)
 
     def show_mining_end(self) -> None:
@@ -520,11 +545,91 @@ class RendererTool:
             f"\n  [{GREEN}]✓ 已提交[/]  [{CYAN}]{actual_hash}[/]"
         )
 
+    def ask_should_curse(self, k_value: int) -> bool:
+        prompt = f"[{RED}]  此 hash 尚無凶兆（K={k_value}），真的要下蠱施術？[y/N] [/]"
+        self.console.print()
+        answer = self.console.input(prompt).strip().lower()
+        return answer == "y"
+
+    def show_curse_initial_success(self, hash_str: str, unlucky_match: str) -> None:
+        hash_display = _highlight_hash(hash_str, unlucky_match=unlucky_match)
+        self.console.print(
+            f"\n[{RED}]  ☠ ☠ ☠  天降凶兆，不詳 hash 已至  ☠ ☠ ☠[/]\n\n"
+            f"  [{MUTED}]不詳 hash[/]  {hash_display}\n"
+            f"  [{RED}]◈ 凶兆字符：{unlucky_match}[/]\n"
+        )
+
+    def show_curse_success(
+        self,
+        session,
+        max_attempts: int,
+        new_k_value: int = 0,
+        commentary: str = "",
+        unlucky_match: Optional[str] = None,
+    ) -> None:
+        cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
+
+        original_k = session.k_value
+        filled_orig = int(original_k / 10)
+        bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
+        k_before_color = GREEN if original_k >= 80 else (GOLD if original_k >= 40 else RED)
+
+        new_hash_display = _highlight_hash(session.predicted_hash, unlucky_match=unlucky_match)
+        output = (
+            f"\n[{RED}]  ☠ ☠ ☠  下蠱成功  ☠ ☠ ☠[/]\n\n"
+            f"  [{MUTED}]下蠱前[/]  [{CYAN}]{session.original_predicted_hash}[/]\n"
+            f"  [{MUTED}]下蠱後[/]  {new_hash_display}\n"
+        )
+
+        if original_k > 0 and new_k_value > 0:
+            filled_new = int(new_k_value / 10)
+            bar_new = "█" * filled_new + "░" * (10 - filled_new)
+            output += (
+                f"\n  [{MUTED}]◈ K-value 對照[/]\n"
+                f"  [{k_before_color}]    下蠱前  {bar_orig}  {original_k:3d} / 100[/]\n"
+                f"  [{RED}]    下蠱後  {bar_new}  {new_k_value:3d} / 100[/]\n"
+            )
+
+        self.console.print(output)
+
+        report_table = Table.grid(padding=(0, 2))
+        report_table.add_column(style=MUTED)
+        report_table.add_column()
+        total_tokens = session.total_input_tokens + session.total_output_tokens
+        report_table.add_row("下蠱嘗試次數", f"[{CYAN}]{session.mine_attempts} / {max_attempts}[/]")
+        report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
+        report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
+        report_table.add_row(f"[{MUTED}]業力纏身，自作自受[/]", "")
+        self.console.print(Panel(report_table, title=f"[{RED}]蠱術報告[/]", border_style=RED, expand=False))
+
+        if commentary:
+            self.console.print(f"\n  [{RED}]☠ 天機批示：[/{RED}]")
+            with Live(console=self.console, refresh_per_second=50) as live:
+                displayed = ""
+                for char in commentary:
+                    displayed += char
+                    live.update(Text.from_markup(
+                        f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
+                    ))
+                    time.sleep(0.02)
+                live.update(Text.from_markup(f"  [{CYAN}]「{commentary}」[/]"))
+
+    def show_curse_blessing(self, session) -> None:
+        cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
+        self.console.print(
+            f"\n[{MUTED}]  ╔════════════ 🔮 施術未果 🔮 ════════════╗[/]\n"
+            f"[{MUTED}]  ║  下蠱 {session.mine_attempts} 次均未成功，天地不從       ║[/]\n"
+            f"[{MUTED}]  ╚════════════════════════════════════════╝[/]\n\n"
+            f"  [{PURPLE}]◈ 總消耗：[/{PURPLE}][{CYAN}]{session.total_input_tokens + session.total_output_tokens:,} tokens  {cost_str} 💸[/]\n"
+            f"  [{MUTED}]◈ 天道有常，此劫難逃[/]\n"
+            f"  [{MUTED}]◈ 強行提交，聽天由命...[/]"
+        )
+
     def ask_should_mine(self, k_value: int) -> bool:
         if k_value <= 60:
-            prompt = f"[{GOLD}]  運勢普通（K={k_value}），是否進行逆天改運？[y/N] [/]"
+            prompt = f"[{GOLD}]  運勢普通（K={k_value}），是否進行逆天改運？[Y/N] [/]"
         else:
-            prompt = f"[{CYAN}]  運勢尚可（K={k_value}），逆天改運可更上一層樓。是否進行？[y/N] [/]"
+            prompt = f"[{CYAN}]  運勢尚可（K={k_value}），逆天改運可更上一層樓。是否進行？[Y/N] [/]"
         self.console.print()
         answer = self.console.input(prompt).strip().lower()
         return answer == "y"

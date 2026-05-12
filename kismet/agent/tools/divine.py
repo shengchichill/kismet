@@ -107,7 +107,10 @@ Git diff (analyze the code changes for karmic insight):
 Pre-computed divination:
   Lucky pattern:    {lucky_desc}
   Unlucky omen:     {unlucky_desc}
-  Tarot card drawn: {tarot_card} ({tarot_position})
+  Tarot spread (三張牌陣, Past → Present → Future):
+    過去: {tarot_past_card} ({tarot_past_pos})
+    現在: {tarot_present_card} ({tarot_present_pos})
+    未來: {tarot_future_card} ({tarot_future_pos})
 
 Assign a K-value (0-100):
   Cursed Tier  [0-20]   — unlucky omen is present (curse wins even if lucky also appears)
@@ -118,7 +121,7 @@ Assign a K-value (0-100):
 Write 4-5 sentences in 繁體中文:
   1. Interpret the hash's karmic signature (the lucky or unlucky pattern, if any).
   2. Analyze the code changes karmically.
-  3. Read {tarot_card} ({tarot_position}) in this context.
+  3. Read the three-card spread (過去: {tarot_past_card} / 現在: {tarot_present_card} / 未來: {tarot_future_card}) together in this context.
   4. A prophecy for this commit's journey.
 
 Respond ONLY with this JSON:
@@ -179,11 +182,43 @@ Respond ONLY with this JSON:
 }}"""
 
 
+_CURSE_REPORT_SYSTEM = """You are KISMET, the mystical git commit fortune teller.
+Generate a dramatic curse completion report in Traditional Chinese.
+Respond with valid JSON only, no other text."""
+
+_CURSE_REPORT_USER = """The karmic curse ritual has completed.
+
+Original hash: {original_hash}
+New hash:      {new_hash}
+Original K-value: {original_k}
+New K-value:      {new_k}
+Unlucky pattern found: "{unlucky_match}"
+Attempts taken: {attempts}
+Tokens sacrificed: {tokens_burned:,}
+
+Pattern meanings for reference:
+  dead=死亡萬劫不復, deaf=耳聾剛愎自用, beef=怒氣業力纏身,
+  f001=傻瓜被人愚弄, fa11=跌落谷底一瀉千里, 0ff=能量斷電氣場崩潰,
+  404=人生迷失空虛一場, bad=品德有瑕疵業力纏身,
+  (descending sequence: 節節下滑, triple 4: 四連死字, repeated 87/78: 台語白癡)
+
+Write exactly 2-3 sentences in 繁體中文:
+1. Dramatically narrate the K-value transformation ({original_k} → {new_k})
+2. Mystically interpret the found unlucky pattern "{unlucky_match}" using its meaning above
+3. Give a short dark prophecy for this commit's cursed journey
+
+Respond ONLY with this JSON:
+{{
+  "commentary": "<2-3 sentences in 繁體中文>"
+}}"""
+
+
 @dataclass
 class DivinationResult:
     k_value: int
     tarot_card: str
     tarot_position: str
+    tarot_cards: list[tuple[str, str]]
     reading: str
     input_tokens: int
     output_tokens: int
@@ -242,7 +277,8 @@ class DivinationTool:
 
         unlucky_match = find_unlucky_match(hash_str)
         lucky_match = find_lucky_match(hash_str, [])  # returns None when unlucky is present
-        tarot_card, tarot_position = draw_tarot_card(hash_str)
+        cards = draw_three_tarot_cards(hash_str)
+        tarot_card, tarot_position = cards[0]
 
         response = self.client.chat.completions.create(
             model=self.config.model,
@@ -256,8 +292,12 @@ class DivinationTool:
                         diff_preview=diff[:1500],
                         lucky_desc=_describe_lucky_pattern(lucky_match),
                         unlucky_desc=_describe_unlucky_pattern(unlucky_match),
-                        tarot_card=tarot_card,
-                        tarot_position=tarot_position,
+                        tarot_past_card=cards[0][0],
+                        tarot_past_pos=cards[0][1],
+                        tarot_present_card=cards[1][0],
+                        tarot_present_pos=cards[1][1],
+                        tarot_future_card=cards[2][0],
+                        tarot_future_pos=cards[2][1],
                     ),
                 },
             ],
@@ -280,6 +320,7 @@ class DivinationTool:
             k_value=k_value,
             tarot_card=tarot_card,
             tarot_position=tarot_position,
+            tarot_cards=cards,
             reading=data.get("reading", ""),
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
@@ -312,6 +353,44 @@ class DivinationTool:
                         original_k=original_k,
                         new_k=new_k,
                         lucky_match=lucky_match,
+                        attempts=attempts,
+                        tokens_burned=tokens_burned,
+                    ),
+                },
+            ],
+            max_tokens=200,
+            response_format={"type": "json_object"},
+        )
+        raw = response.choices[0].message.content
+        data = json.loads(raw)
+        commentary = data.get("commentary", "")
+        return commentary, response.usage.prompt_tokens, response.usage.completion_tokens
+
+    def generate_curse_report(
+        self,
+        original_hash: str,
+        new_hash: str,
+        original_k: int,
+        new_k: int,
+        unlucky_match: str,
+        attempts: int,
+        tokens_burned: int,
+    ) -> tuple[str, int, int]:
+        """Generate a mystical commentary on the completed curse ritual.
+        Returns (commentary, input_tokens, output_tokens).
+        """
+        response = self.client.chat.completions.create(
+            model=self.config.model,
+            messages=[
+                {"role": "system", "content": _CURSE_REPORT_SYSTEM},
+                {
+                    "role": "user",
+                    "content": _CURSE_REPORT_USER.format(
+                        original_hash=original_hash,
+                        new_hash=new_hash,
+                        original_k=original_k,
+                        new_k=new_k,
+                        unlucky_match=unlucky_match,
                         attempts=attempts,
                         tokens_burned=tokens_burned,
                     ),
