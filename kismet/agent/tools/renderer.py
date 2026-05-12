@@ -546,14 +546,15 @@ class RendererTool:
             f"[{MUTED}]◈ 花錢消災，功德圓滿[/]\n"
             f"[{GOLD}]◈ 強行提交，聽天由命...[/]"
         )
-        panel = Panel(
-            Group(Align.center(scroll_art), Text(""), stats),
+        self.console.print()
+        self.console.print(Align.center(scroll_art))
+        self.console.print()
+        self.console.print(Align.center(Panel(
+            stats,
             title=f"[{GOLD}]🙏 祈福儀式（改運 {session.mine_attempts} 次）🙏[/]",
             border_style=GOLD,
             expand=False,
-        )
-        self.console.print()
-        self.console.print(Align.center(panel))
+        )))
 
     def show_exorcism(self) -> None:
         DARK_RED = "#7f1d1d"
@@ -574,14 +575,10 @@ class RendererTool:
             f"[{RED}]║  ║[/][{DARK_RED}]███████████████████████████[/][{RED}]║  ║[/]\n"
             f"[{RED}]╚══╩═══════════════════════════╩══╝[/]"
         )
-        panel = Panel(
-            Align.center(art),
-            title=f"[{RED}]⚡ 警告：強行打破宇宙平衡 ⚡[/]",
-            border_style=RED,
-            expand=False,
-        )
         self.console.print()
-        self.console.print(Align.center(panel))
+        self.console.print(f"  [{RED}]⚡ 警告：強行打破宇宙平衡 ⚡[/]")
+        self.console.print()
+        self.console.print(Align.center(art))
         self.console.print()
 
     def show_celebration(self) -> None:
