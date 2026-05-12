@@ -7,8 +7,8 @@ if TYPE_CHECKING:
     from kismet.agent.tools.git import GitTool
     from kismet.config import Config
 
-# Sorted longest-first to avoid partial matches
-_LUCKY_STRINGS = [
+# Longest first to avoid partial-match false negatives; enforced by sorted() at module load
+_LUCKY_STRINGS: list[str] = sorted([
     "c0ffee",  # 咖啡代表生命之水
     "b0ba",    # 珍珠奶茶
     "c001",    # cool
@@ -25,7 +25,7 @@ _LUCKY_STRINGS = [
     "ace",     # 王牌
     "add",     # 增加運勢
     "aba",     # 阿爸，有爸爸當靠山
-]
+], key=len, reverse=True)
 
 _UNLUCKY_STRINGS = [
     "dead",
@@ -266,6 +266,13 @@ class MinerTool:
 
         session.original_predicted_hash = session.predicted_hash
         max_attempts = self.config.max_mine_attempts
+        ctx = GitContext(
+            tree_sha=session.tree_sha,
+            parent_sha=session.parent_sha,
+            author_name=session.author_name,
+            author_email=session.author_email,
+            fixed_timestamp=session.fixed_timestamp,
+        )
 
         renderer.show_mining_start()
         try:
@@ -278,13 +285,6 @@ class MinerTool:
                 session.total_input_tokens += in_tok
                 session.total_output_tokens += out_tok
 
-                ctx = GitContext(
-                    tree_sha=session.tree_sha,
-                    parent_sha=session.parent_sha,
-                    author_name=session.author_name,
-                    author_email=session.author_email,
-                    fixed_timestamp=session.fixed_timestamp,
-                )
                 new_hash = self.git_tool.compute_hash(new_msg, ctx)
                 lucky_match = find_lucky_match(new_hash, targets)
                 lucky = lucky_match is not None

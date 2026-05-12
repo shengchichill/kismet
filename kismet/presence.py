@@ -120,13 +120,26 @@ def ensure_mage_running() -> None:
     MAGE_PID_FILE.write_text(str(proc.pid), encoding="utf-8")
 
 
+def _kill_process(pid: int) -> None:
+    """Terminate a process by PID, cross-platform."""
+    if sys.platform == "win32":
+        import ctypes
+        PROCESS_TERMINATE = 0x0001
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+        if handle:
+            ctypes.windll.kernel32.TerminateProcess(handle, 0)
+            ctypes.windll.kernel32.CloseHandle(handle)
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+
 def stop_mage() -> None:
     if not MAGE_PID_FILE.exists():
         click.echo("小法師 not running")
         return
     try:
         pid = int(MAGE_PID_FILE.read_text(encoding="utf-8").strip())
-        os.kill(pid, signal.SIGTERM)
+        _kill_process(pid)
     except (ValueError, OSError):
         pass
     MAGE_PID_FILE.unlink(missing_ok=True)

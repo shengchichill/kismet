@@ -41,14 +41,8 @@ class GitTool:
     def get_context(self) -> GitContext:
         tree_sha = self._run(["git", "write-tree"])
 
-        parent_result = subprocess.run(
-            ["git", "rev-parse", "--verify", "HEAD"],
-            cwd=self.cwd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        parent_sha = parent_result.stdout.strip() if parent_result.returncode == 0 else None
+        parent_out = self._run(["git", "rev-parse", "--verify", "HEAD"], check=False)
+        parent_sha = parent_out or None
 
         author_name = self._run(["git", "config", "user.name"])
         author_email = self._run(["git", "config", "user.email"])
@@ -81,6 +75,7 @@ class GitTool:
         return self._run(["git", "rev-parse", "HEAD"])
 
     def _build_commit_object(self, message: str, ctx: GitContext) -> bytes:
+        message = message.replace("\r\n", "\n").replace("\r", "\n")
         author_str = f"{ctx.author_name} <{ctx.author_email}> {ctx.fixed_timestamp}"
         lines = [f"tree {ctx.tree_sha}"]
         if ctx.parent_sha:

@@ -179,7 +179,7 @@ class RendererTool:
     def __init__(self):
         self.console = Console()
         self._mining_live: Optional[Live] = None
-        self._mining_log: deque = deque(maxlen=10)
+        self._mining_log: deque[str] = deque(maxlen=10)
         self._altar_frame: int = 0
         self._altar_stop: threading.Event = threading.Event()
         self._altar_thread: Optional[threading.Thread] = None
@@ -359,17 +359,20 @@ class RendererTool:
         ):
             yield
 
-    def show_divination_reading(self, hash_str: str, result: DivinationResult) -> None:
-        self.console.print()
-        with Live(console=self.console, refresh_per_second=40) as live:
+    def _typewriter(self, text: str, delay: float = 0.02) -> None:
+        with Live(console=self.console, refresh_per_second=50) as live:
             displayed = ""
-            for char in result.reading:
+            for char in text:
                 displayed += char
                 live.update(Text.from_markup(
                     f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
                 ))
-                time.sleep(0.025)
-            live.update(Text.from_markup(f"  [{CYAN}]「{result.reading}」[/]"))
+                time.sleep(delay)
+            live.update(Text.from_markup(f"  [{CYAN}]「{text}」[/]"))
+
+    def show_divination_reading(self, hash_str: str, result: DivinationResult) -> None:
+        self.console.print()
+        self._typewriter(result.reading, delay=0.025)
 
     def show_divination_result(self, hash_str: str, result: DivinationResult) -> None:
         k = result.k_value
@@ -445,6 +448,69 @@ class RendererTool:
 
     # ── Outcomes ─────────────────────────────────────────────────────────────
 
+    def _show_outcome(
+        self,
+        session,
+        max_attempts: int,
+        new_k_value: int,
+        commentary: str,
+        match: Optional[str],
+        *,
+        mode: str,  # "success" or "curse"
+    ) -> None:
+        cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
+        original_k = session.k_value
+
+        if mode == "success":
+            header = f"\n[{GREEN}]  ✦ ✧ ✦ ✧ ✦  改運成功  ✦ ✧ ✦ ✧ ✦[/]\n"
+            original_hash_color, before_label, after_label = RED, "改運前", "改運後"
+            k_before_color = RED if original_k <= 40 else (GOLD if original_k <= 60 else GREEN)
+            k_after_color_fn = lambda k: GREEN if k >= 60 else (GOLD if k >= 40 else RED)
+            new_hash_display = _highlight_hash(session.predicted_hash, lucky_match=match)
+            attempts_label, footer = "改運嘗試次數", "花錢消災，物有所值"
+            panel_title, panel_border = f"[{PURPLE}]誠心敬意報告[/]", PURPLE
+            commentary_prefix = f"[{PURPLE}]✦ 天機批示：[/{PURPLE}]"
+        else:  # curse
+            header = f"\n[{RED}]  ☠ ☠ ☠  下蠱成功  ☠ ☠ ☠[/]\n"
+            original_hash_color, before_label, after_label = CYAN, "下蠱前", "下蠱後"
+            k_before_color = GREEN if original_k >= 80 else (GOLD if original_k >= 40 else RED)
+            k_after_color_fn = lambda k: RED
+            new_hash_display = _highlight_hash(session.predicted_hash, unlucky_match=match)
+            attempts_label, footer = "下蠱嘗試次數", "業力纏身，自作自受"
+            panel_title, panel_border = f"[{RED}]蠱術報告[/]", RED
+            commentary_prefix = f"[{RED}]☠ 天機批示：[/{RED}]"
+
+        output = (
+            f"{header}\n"
+            f"  [{MUTED}]{before_label}[/]  [{original_hash_color}]{session.original_predicted_hash}[/]\n"
+            f"  [{MUTED}]{after_label}[/]  {new_hash_display}\n"
+        )
+        if original_k > 0 and new_k_value > 0:
+            filled_orig = int(original_k / 10)
+            bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
+            filled_new = int(new_k_value / 10)
+            bar_new = "█" * filled_new + "░" * (10 - filled_new)
+            output += (
+                f"\n  [{MUTED}]◈ K-value 對照[/]\n"
+                f"  [{k_before_color}]    {before_label}  {bar_orig}  {original_k:3d} / 100[/]\n"
+                f"  [{k_after_color_fn(new_k_value)}]    {after_label}  {bar_new}  {new_k_value:3d} / 100[/]\n"
+            )
+        self.console.print(output)
+
+        total_tokens = session.total_input_tokens + session.total_output_tokens
+        report_table = Table.grid(padding=(0, 2))
+        report_table.add_column(style=MUTED)
+        report_table.add_column()
+        report_table.add_row(attempts_label, f"[{CYAN}]{session.mine_attempts} / {max_attempts}[/]")
+        report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
+        report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
+        report_table.add_row(f"[{MUTED}]{footer}[/]", "")
+        self.console.print(Panel(report_table, title=panel_title, border_style=panel_border, expand=False))
+
+        if commentary:
+            self.console.print(f"\n  {commentary_prefix}")
+            self._typewriter(commentary)
+
     def show_success(
         self,
         session,
@@ -453,53 +519,7 @@ class RendererTool:
         commentary: str = "",
         lucky_match: Optional[str] = None,
     ) -> None:
-        cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
-
-        original_k = session.k_value
-        filled_orig = int(original_k / 10)
-        bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
-        k_before_color = RED if original_k <= 40 else (GOLD if original_k <= 60 else GREEN)
-
-        new_hash_display = _highlight_hash(session.predicted_hash, lucky_match)
-        output = (
-            f"\n[{GREEN}]  ✦ ✧ ✦ ✧ ✦  改運成功  ✦ ✧ ✦ ✧ ✦[/]\n\n"
-            f"  [{MUTED}]改運前[/]  [{RED}]{session.original_predicted_hash}[/]\n"
-            f"  [{MUTED}]改運後[/]  {new_hash_display}\n"
-        )
-
-        if original_k > 0 and new_k_value > 0:
-            filled_new = int(new_k_value / 10)
-            bar_new = "█" * filled_new + "░" * (10 - filled_new)
-            k_after_color = GREEN if new_k_value >= 60 else (GOLD if new_k_value >= 40 else RED)
-            output += (
-                f"\n  [{MUTED}]◈ K-value 對照[/]\n"
-                f"  [{k_before_color}]    改運前  {bar_orig}  {original_k:3d} / 100[/]\n"
-                f"  [{k_after_color}]    改運後  {bar_new}  {new_k_value:3d} / 100[/]\n"
-            )
-
-        self.console.print(output)
-
-        report_table = Table.grid(padding=(0, 2))
-        report_table.add_column(style=MUTED)
-        report_table.add_column()
-        total_tokens = session.total_input_tokens + session.total_output_tokens
-        report_table.add_row("改運嘗試次數", f"[{CYAN}]{session.mine_attempts} / {max_attempts}[/]")
-        report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
-        report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
-        report_table.add_row(f"[{MUTED}]花錢消災，物有所值[/]", "")
-        self.console.print(Panel(report_table, title=f"[{PURPLE}]誠心敬意報告[/]", border_style=PURPLE, expand=False))
-
-        if commentary:
-            self.console.print(f"\n  [{PURPLE}]✦ 天機批示：[/{PURPLE}]")
-            with Live(console=self.console, refresh_per_second=50) as live:
-                displayed = ""
-                for char in commentary:
-                    displayed += char
-                    live.update(Text.from_markup(
-                        f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
-                    ))
-                    time.sleep(0.02)
-                live.update(Text.from_markup(f"  [{CYAN}]「{commentary}」[/]"))
+        self._show_outcome(session, max_attempts, new_k_value, commentary, lucky_match, mode="success")
 
     def show_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
@@ -577,52 +597,7 @@ class RendererTool:
         commentary: str = "",
         unlucky_match: Optional[str] = None,
     ) -> None:
-        cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
-
-        original_k = session.k_value
-        filled_orig = int(original_k / 10)
-        bar_orig = "█" * filled_orig + "░" * (10 - filled_orig)
-        k_before_color = GREEN if original_k >= 80 else (GOLD if original_k >= 40 else RED)
-
-        new_hash_display = _highlight_hash(session.predicted_hash, unlucky_match=unlucky_match)
-        output = (
-            f"\n[{RED}]  ☠ ☠ ☠  下蠱成功  ☠ ☠ ☠[/]\n\n"
-            f"  [{MUTED}]下蠱前[/]  [{CYAN}]{session.original_predicted_hash}[/]\n"
-            f"  [{MUTED}]下蠱後[/]  {new_hash_display}\n"
-        )
-
-        if original_k > 0 and new_k_value > 0:
-            filled_new = int(new_k_value / 10)
-            bar_new = "█" * filled_new + "░" * (10 - filled_new)
-            output += (
-                f"\n  [{MUTED}]◈ K-value 對照[/]\n"
-                f"  [{k_before_color}]    下蠱前  {bar_orig}  {original_k:3d} / 100[/]\n"
-                f"  [{RED}]    下蠱後  {bar_new}  {new_k_value:3d} / 100[/]\n"
-            )
-
-        self.console.print(output)
-
-        report_table = Table.grid(padding=(0, 2))
-        report_table.add_column(style=MUTED)
-        report_table.add_column()
-        total_tokens = session.total_input_tokens + session.total_output_tokens
-        report_table.add_row("下蠱嘗試次數", f"[{CYAN}]{session.mine_attempts} / {max_attempts}[/]")
-        report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
-        report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
-        report_table.add_row(f"[{MUTED}]業力纏身，自作自受[/]", "")
-        self.console.print(Panel(report_table, title=f"[{RED}]蠱術報告[/]", border_style=RED, expand=False))
-
-        if commentary:
-            self.console.print(f"\n  [{RED}]☠ 天機批示：[/{RED}]")
-            with Live(console=self.console, refresh_per_second=50) as live:
-                displayed = ""
-                for char in commentary:
-                    displayed += char
-                    live.update(Text.from_markup(
-                        f"  [{CYAN}]「{displayed}[/{CYAN}][{PINK}]█[/{PINK}]"
-                    ))
-                    time.sleep(0.02)
-                live.update(Text.from_markup(f"  [{CYAN}]「{commentary}」[/]"))
+        self._show_outcome(session, max_attempts, new_k_value, commentary, unlucky_match, mode="curse")
 
     def show_curse_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"

@@ -76,7 +76,7 @@ def test_stop_mage_no_pid_file(pfiles, capsys):
 
 def test_stop_mage_sends_signal_and_removes_file(pfiles):
     (pfiles / "mage.pid").write_text(str(os.getpid()))
-    with patch("os.kill"):
+    with patch("kismet.presence._kill_process"):
         p.stop_mage()
     assert not (pfiles / "mage.pid").exists()
 

@@ -7,6 +7,9 @@ import openai
 
 from kismet.config import Config
 
+_DIVINATION_MAX_TOKENS = 400
+_REPORT_MAX_TOKENS = 200
+
 _MAJOR_ARCANA = [
     "The Fool", "The Magician", "The High Priestess", "The Empress",
     "The Emperor", "The Hierophant", "The Lovers", "The Chariot",
@@ -301,7 +304,7 @@ class DivinationTool:
                     ),
                 },
             ],
-            max_tokens=400,
+            max_tokens=_DIVINATION_MAX_TOKENS,
             response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content
@@ -358,7 +361,7 @@ class DivinationTool:
                     ),
                 },
             ],
-            max_tokens=200,
+            max_tokens=_REPORT_MAX_TOKENS,
             response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content
@@ -396,7 +399,7 @@ class DivinationTool:
                     ),
                 },
             ],
-            max_tokens=200,
+            max_tokens=_REPORT_MAX_TOKENS,
             response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content

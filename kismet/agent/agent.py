@@ -1,5 +1,4 @@
 import contextlib
-from typing import Optional
 
 from kismet.agent.session import KismetSession
 from kismet.agent.tools.divine import DivinationTool
@@ -61,8 +60,6 @@ class KismetAgent:
         return contextlib.nullcontext()
 
     def _run_divination(self, session: KismetSession) -> None:
-        from kismet.agent.tools.mine import find_lucky_match, find_unlucky_match
-
         write_state("divine")
         unlucky_match = find_unlucky_match(session.predicted_hash)
         lucky_match = find_lucky_match(session.predicted_hash, [])
@@ -112,7 +109,8 @@ class KismetAgent:
                 tokens_burned=session.total_input_tokens + session.total_output_tokens,
             )
             self._add_tokens(session, in_tok, out_tok)
-        except Exception:
+        except Exception as exc:
+            self.renderer.console.print(f"  [dim]⚠ 報告生成失敗：{exc}[/dim]")
             commentary = ""
 
         return new_k, commentary, lucky_match or ""
@@ -242,7 +240,8 @@ class KismetAgent:
                 tokens_burned=session.total_input_tokens + session.total_output_tokens,
             )
             self._add_tokens(session, in_tok, out_tok)
-        except Exception:
+        except Exception as exc:
+            self.renderer.console.print(f"  [dim]⚠ 報告生成失敗：{exc}[/dim]")
             commentary = ""
 
         return new_k, commentary, unlucky_match
@@ -258,7 +257,7 @@ class KismetAgent:
         self.renderer.show_mining_start(curse=True)
         session.original_predicted_hash = session.predicted_hash
         cursed = False
-        unlucky_match: Optional[str] = None
+        unlucky_match: str | None = None
 
         write_state("curse")
         with keep_state_alive("curse"):
