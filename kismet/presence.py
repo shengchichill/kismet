@@ -31,28 +31,42 @@ def read_presence() -> Optional[dict]:
         return None
 
 
+def _pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        # os.kill(pid, 0) on Windows calls GenerateConsoleCtrlEvent, not a
+        # liveness probe. Processes created with CREATE_NO_WINDOW don't share
+        # the caller's console, so the call always raises OSError regardless of
+        # whether the process is alive. Use OpenProcess + GetExitCodeProcess
+        # instead.
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return bool(ok) and code.value == STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 def _is_stale(data: dict) -> bool:
     if time.time() - data["timestamp"] < _STALE_TIMEOUT:
         return False
-    try:
-        os.kill(data["cli_pid"], 0)
-        return False
-    except OSError:
-        return True
+    return not _pid_alive(data["cli_pid"])
 
 
 def compute_mage_state(data: Optional[dict]) -> str:
     if data is None or _is_stale(data):
         return "idle"
     return data.get("state", "idle")
-
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
 
 
 @contextlib.contextmanager
@@ -106,13 +120,26 @@ def ensure_mage_running() -> None:
     MAGE_PID_FILE.write_text(str(proc.pid), encoding="utf-8")
 
 
+def _kill_process(pid: int) -> None:
+    """Terminate a process by PID, cross-platform."""
+    if sys.platform == "win32":
+        import ctypes
+        PROCESS_TERMINATE = 0x0001
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+        if handle:
+            ctypes.windll.kernel32.TerminateProcess(handle, 0)
+            ctypes.windll.kernel32.CloseHandle(handle)
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+
 def stop_mage() -> None:
     if not MAGE_PID_FILE.exists():
         click.echo("小法師 not running")
         return
     try:
         pid = int(MAGE_PID_FILE.read_text(encoding="utf-8").strip())
-        os.kill(pid, signal.SIGTERM)
+        _kill_process(pid)
     except (ValueError, OSError):
         pass
     MAGE_PID_FILE.unlink(missing_ok=True)

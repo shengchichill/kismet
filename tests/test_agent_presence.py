@@ -53,6 +53,12 @@ def test_run_mine_writes_mining_and_success(mock_ensure, mock_write):
     agent.divine.generate_message.return_value = ("feat: test", 10, 5)
     agent.git.compute_hash.return_value = "abc123"
     agent.miner.mine.return_value = MineResult(MineStatus.SUCCESS)
+    divine_result = MagicMock()
+    divine_result.k_value = 85
+    divine_result.input_tokens = 10
+    divine_result.output_tokens = 5
+    agent.divine.divine.return_value = divine_result
+    agent.divine.generate_mining_report.return_value = ("great", 5, 3)
 
     agent.run_mine([])
 

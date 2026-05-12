@@ -3,7 +3,7 @@ import contextlib
 from kismet.agent.session import KismetSession
 from kismet.agent.tools.divine import DivinationTool
 from kismet.agent.tools.git import GitContext, GitTool
-from kismet.agent.tools.mine import MineStatus, MinerTool, is_lucky
+from kismet.agent.tools.mine import MineStatus, MinerTool, find_lucky_match, find_unlucky_match
 from kismet.agent.tools.renderer import RendererTool
 from kismet.config import Config
 from kismet.presence import detect_mage_mode, ensure_mage_running, keep_state_alive, write_state
@@ -61,7 +61,13 @@ class KismetAgent:
 
     def _run_divination(self, session: KismetSession) -> None:
         write_state("divine")
-        self.renderer.show_divination_animation(session.predicted_hash)
+        unlucky_match = find_unlucky_match(session.predicted_hash)
+        lucky_match = find_lucky_match(session.predicted_hash, [])
+        self.renderer.show_divination_animation(
+            session.predicted_hash,
+            lucky_match=lucky_match,
+            unlucky_match=unlucky_match,
+        )
         with self.renderer.divination_spinner(session.predicted_hash):
             result = self.divine.divine(session.predicted_hash, session.current_message, session.diff)
         self._add_tokens(session, result.input_tokens, result.output_tokens)
@@ -72,6 +78,43 @@ class KismetAgent:
         self.renderer.show_divination_reading(session.predicted_hash, result)
         self.renderer.show_divination_result(session.predicted_hash, result)
 
+    def _generate_success_report(
+        self, session: KismetSession, targets: list[str]
+    ) -> tuple[int, str, str]:
+        """Re-divine the lucky hash and generate a mystical report.
+        Returns (new_k_value, commentary, lucky_match).
+        """
+        with self.renderer.divination_spinner(session.predicted_hash):
+            new_result = self.divine.divine(
+                session.predicted_hash, session.current_message, session.diff
+            )
+        self._add_tokens(session, new_result.input_tokens, new_result.output_tokens)
+
+        # LLM 受 prompt anchoring 影響，常在改運後仍回傳相同 K-value。
+        # 若沒有自然上升，套用 deterministic floor 確保改運有意義。
+        new_k = new_result.k_value
+        if new_k <= session.k_value:
+            boost = max(15, (100 - session.k_value) // 3)
+            new_k = min(95, session.k_value + boost)
+
+        lucky_match = find_lucky_match(session.predicted_hash, targets)
+        try:
+            commentary, in_tok, out_tok = self.divine.generate_mining_report(
+                original_hash=session.original_predicted_hash,
+                new_hash=session.predicted_hash,
+                original_k=session.k_value,
+                new_k=new_k,
+                lucky_match=lucky_match or "",
+                attempts=session.mine_attempts,
+                tokens_burned=session.total_input_tokens + session.total_output_tokens,
+            )
+            self._add_tokens(session, in_tok, out_tok)
+        except Exception as exc:
+            self.renderer.console.print(f"  [dim]⚠ 報告生成失敗：{exc}[/dim]")
+            commentary = ""
+
+        return new_k, commentary, lucky_match or ""
+
     def _mine_and_commit(self, session: KismetSession, targets: list[str]) -> None:
         write_state("mining")
         with keep_state_alive("mining"):
@@ -80,7 +123,14 @@ class KismetAgent:
             return
         if result.status is MineStatus.SUCCESS:
             write_state("success")
-            self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
+            new_k_value, commentary, lucky_match = self._generate_success_report(session, targets)
+            self.renderer.show_success(
+                session,
+                max_attempts=self.config.max_mine_attempts,
+                new_k_value=new_k_value,
+                commentary=commentary,
+                lucky_match=lucky_match or None,
+            )
         else:
             write_state("failed")
             self.renderer.show_blessing(session)
@@ -130,7 +180,14 @@ class KismetAgent:
                 return
             if result.status is MineStatus.SUCCESS:
                 write_state("success")
-                self.renderer.show_success(session, max_attempts=self.config.max_mine_attempts)
+                new_k_value, commentary, lucky_match = self._generate_success_report(session, targets)
+                self.renderer.show_success(
+                    session,
+                    max_attempts=self.config.max_mine_attempts,
+                    new_k_value=new_k_value,
+                    commentary=commentary,
+                    lucky_match=lucky_match or None,
+                )
             else:
                 write_state("failed")
                 self.renderer.show_blessing(session)
@@ -154,39 +211,124 @@ class KismetAgent:
             actual_hash = self.git.commit(message, ctx)
             self.renderer.show_committed(actual_hash)
 
+    def _generate_curse_report(
+        self, session: KismetSession, targets: list[str]
+    ) -> tuple[int, str, str]:
+        """Re-divine the cursed hash and generate a dark report.
+        Returns (new_k_value, commentary, unlucky_match).
+        """
+        with self.renderer.divination_spinner(session.predicted_hash):
+            new_result = self.divine.divine(
+                session.predicted_hash, session.current_message, session.diff
+            )
+        self._add_tokens(session, new_result.input_tokens, new_result.output_tokens)
+
+        new_k = new_result.k_value
+        if new_k >= session.k_value:
+            penalty = max(15, session.k_value // 3)
+            new_k = max(5, session.k_value - penalty)
+
+        if targets:
+            unlucky_match = find_lucky_match(session.predicted_hash, targets) or ""
+        else:
+            unlucky_match = find_unlucky_match(session.predicted_hash) or ""
+
+        try:
+            commentary, in_tok, out_tok = self.divine.generate_curse_report(
+                original_hash=session.original_predicted_hash,
+                new_hash=session.predicted_hash,
+                original_k=session.k_value,
+                new_k=new_k,
+                unlucky_match=unlucky_match,
+                attempts=session.mine_attempts,
+                tokens_burned=session.total_input_tokens + session.total_output_tokens,
+            )
+            self._add_tokens(session, in_tok, out_tok)
+        except Exception as exc:
+            self.renderer.console.print(f"  [dim]⚠ 報告生成失敗：{exc}[/dim]")
+            commentary = ""
+
+        return new_k, commentary, unlucky_match
+
+    def _curse_and_commit(self, session: KismetSession, targets: list[str]) -> None:
+        if targets:
+            target_info = f"，目標字串: {targets}"
+        else:
+            target_info = ""
+        self.renderer.console.print(
+            f"\n  [bold red]⬇ 下蠱施術開始{target_info}...[/bold red]"
+        )
+        self.renderer.show_mining_start(curse=True)
+        session.original_predicted_hash = session.predicted_hash
+        cursed = False
+        unlucky_match: str | None = None
+
+        write_state("curse")
+        with keep_state_alive("curse"):
+            for attempt in range(1, self.config.max_mine_attempts + 1):
+                new_msg, in_tok, out_tok = self.divine.rephrase_message(
+                    session.current_message, attempt, self.config.max_mine_attempts
+                )
+                self._add_tokens(session, in_tok, out_tok)
+                new_hash = self.git.compute_hash(new_msg, self._ctx_from_session(session))
+
+                if targets:
+                    unlucky_match = find_lucky_match(new_hash, targets)
+                else:
+                    unlucky_match = find_unlucky_match(new_hash)
+                cursed = unlucky_match is not None
+
+                self.renderer.show_mining_attempt(
+                    attempt, self.config.max_mine_attempts, new_hash, cursed, target=unlucky_match
+                )
+                session.current_message = new_msg
+                session.predicted_hash = new_hash
+                session.mine_attempts = attempt
+
+                if cursed:
+                    break
+
+        self.renderer.show_mining_end()
+
+        if cursed:
+            write_state("success")
+            new_k_value, commentary, unlucky_match = self._generate_curse_report(session, targets)
+            self.renderer.show_curse_success(
+                session,
+                max_attempts=self.config.max_mine_attempts,
+                new_k_value=new_k_value,
+                commentary=commentary,
+                unlucky_match=unlucky_match or None,
+            )
+        else:
+            write_state("failed")
+            self.renderer.show_curse_blessing(session)
+
+        actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
+        self.renderer.show_committed(actual_hash)
+
     def run_curse(self, targets: list[str]) -> None:
-        """Reverse mine: find an unlucky hash and commit it."""
+        """Full curse: generate message → divine → check unlucky → [mine unlucky] → commit."""
         with self._start_mage():
-            _DEFAULT_CURSE = ["dead", "404", "f00d", "bad"]
-            effective = targets if targets else _DEFAULT_CURSE
             self.renderer.show_banner()
             session = self._build_session()
-            self.renderer.console.print(
-                f"\n  [bold red]⬇ 下蠱模式啟動 — 尋找不詳 hash...[/bold red]\n"
-                f"  目標字串: {effective}"
-            )
-            self.renderer.show_mining_start()
+            self._run_divination(session)
 
-            write_state("curse")
-            with keep_state_alive("curse"):
-                for attempt in range(1, self.config.max_mine_attempts + 1):
-                    new_msg, in_tok, out_tok = self.divine.rephrase_message(
-                        session.current_message, attempt, self.config.max_mine_attempts
-                    )
-                    self._add_tokens(session, in_tok, out_tok)
-                    new_hash = self.git.compute_hash(new_msg, self._ctx_from_session(session))
-                    cursed = is_lucky(new_hash, effective)
-                    self.renderer.show_mining_attempt(attempt, self.config.max_mine_attempts, new_hash, cursed)
-                    session.current_message = new_msg
-                    session.predicted_hash = new_hash
-                    if cursed:
-                        write_state("success")
-                        self.renderer.console.print(f"\n  [red]☠ 下蠱成功！不詳 hash 已就位。[/red]")
-                        actual_hash = self.git.commit(new_msg, self._ctx_from_session(session))
-                        self.renderer.show_committed(actual_hash)
-                        return
+            if targets:
+                initial_unlucky = find_lucky_match(session.predicted_hash, targets)
+            else:
+                initial_unlucky = find_unlucky_match(session.predicted_hash)
 
-            write_state("failed")
-            self.renderer.console.print("\n  [yellow]下蠱未成功，天地不從。仍以普通 hash 提交。[/yellow]")
-            actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
-            self.renderer.show_committed(actual_hash)
+            if initial_unlucky:
+                write_state("curse")
+                self.renderer.show_curse_initial_success(session.predicted_hash, initial_unlucky)
+                actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
+                self.renderer.show_committed(actual_hash)
+                return
+
+            if not self.renderer.ask_should_curse(session.k_value):
+                actual_hash = self.git.commit(session.current_message, self._ctx_from_session(session))
+                self.renderer.show_committed(actual_hash)
+                return
+
+            self._curse_and_commit(session, targets)

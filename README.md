@@ -35,7 +35,7 @@ KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–1
 Requires [uv](https://github.com/astral-sh/uv).
 
 ```bash
-git clone https://github.com/yourname/kismet.git
+git clone https://github.com/shengchichill/kismet.git
 ```
 
 Install as a global tool so `kismet` works from any directory:
@@ -121,8 +121,8 @@ kismet divine
 Rephrases commit message until the hash matches target strings. No commit.
 
 ```bash
-kismet mine              # default lucky list: 888 168 777 666 + palindromes + runs
-kismet mine 888 168      # custom targets
+kismet mine              # default lucky list (see below)
+kismet mine c0ffee 168   # custom targets
 ```
 
 `kismet mine` requires MacSensorAgent to confirm at least one accepted ritual gate before every mining attempt. Start MacSensorAgent first, grant the needed permissions, then hold both hands together facing the camera, place green Kuai Kuai in view, play accepted ritual music, or say an accepted ritual spell when prompted. The gates are OR-based: any accepted gate passes the ritual. Yellow, red, or other non-green Kuai Kuai is reported as an omen/status, but it no longer vetoes another accepted gate. If no ritual is confirmed within `KISMET_PRAYER_POSE_TIMEOUT`, mining stops before rephrasing the message or committing anything.
@@ -139,7 +139,7 @@ kismet force
 
 ### `kismet curse [TARGETS...]` — Curse mode
 
-Mines for an *unlucky* hash (dead, 404, f00d, bad) and commits it.
+Full curse flow: divines the hash first, then mines for an *unlucky* hash and commits with a dark ritual report.
 
 ```bash
 kismet curse
@@ -171,13 +171,29 @@ Available states for `kismet mage set`:
 
 ---
 
-## Lucky Patterns (default)
+## Lucky & Unlucky Patterns
 
-| Pattern | Example |
+### Lucky (default)
+
+| Type | Strings / Rule |
 |---|---|
-| Fixed strings | `888`, `168`, `777`, `666` |
-| Ascending run ≥ 3 | `123`, `abc` |
-| Palindrome ≥ 4 chars | `abba`, `1221` |
+| Named strings (6-char) | `c0ffee` |
+| Named strings (4-char) | `b0ba` `c001` `5afe` `c0de` `fafa` `feed` `face` `babe` `baba` `cafe` `f00d` |
+| Named strings (3-char) | `168` `ace` `add` `aba` |
+| Mountain run ≥ 5 chars | ascending then descending, e.g. `abcba`, `12321` |
+| Ascending run ≥ 3 | e.g. `123`, `abc` |
+| Repeated char ≥ 3 | e.g. `aaa`, `bbb` (not `4`) |
+
+Longer strings take priority over shorter ones (sorted longest-first). An unlucky pattern overrides all lucky patterns unless it is fully covered by a lucky named string (e.g. `0ff` inside `c0ffee` is shielded).
+
+### Unlucky (default)
+
+| Type | Strings / Rule |
+|---|---|
+| Named strings | `dead` `deaf` `beef` `f001` `fa11` `0ff` `404` `bad` |
+| Triple+ fours | `444`, `4444`, … |
+| Descending run ≥ 3 | e.g. `cba`, `321` (shielded if inside a mountain) |
+| Repeated 87/78 ≥ 2× | `8787`, `7878`, … |
 
 ---
 
@@ -187,7 +203,7 @@ Available states for `kismet mage set`:
 uv run pytest -v
 ```
 
-83 tests. No live LLM calls in tests (all mocked).
+147 tests. No live LLM calls in tests (all mocked).
 
 ---
 

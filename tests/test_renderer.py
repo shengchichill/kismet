@@ -1,0 +1,191 @@
+from io import StringIO
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+
+def _make_console() -> Console:
+    return Console(file=StringIO(), force_terminal=True, width=120)
+
+
+def test_tarot_zh_has_all_22_cards():
+    from kismet.agent.tools.renderer import _TAROT_ZH
+    from kismet.agent.tools.divine import _MAJOR_ARCANA
+    for card in _MAJOR_ARCANA:
+        assert card in _TAROT_ZH, f"Missing Chinese name for: {card}"
+
+
+def test_tarot_emoji_has_all_22_cards():
+    from kismet.agent.tools.renderer import _TAROT_EMOJI
+    from kismet.agent.tools.divine import _MAJOR_ARCANA
+    for card in _MAJOR_ARCANA:
+        assert card in _TAROT_EMOJI, f"Missing emoji for: {card}"
+
+
+def test_make_card_panel_returns_panel():
+    from kismet.agent.tools.renderer import _make_card_panel
+    for state in ("facedown", "flipping", "revealed"):
+        result = _make_card_panel("🌕", "月亮", "正位", state)
+        assert isinstance(result, Panel)
+
+
+def test_make_card_panel_renders_without_error():
+    from kismet.agent.tools.renderer import _make_card_panel
+    console = _make_console()
+    for state in ("facedown", "flipping", "revealed"):
+        panel = _make_card_panel("💀", "死神", "逆位", state)
+        console.print(panel)  # must not raise
+
+
+def test_make_spread_table_returns_table():
+    from kismet.agent.tools.renderer import _make_spread_table
+    card_data = [("🌕", "月亮", "正位"), ("💀", "死神", "逆位"), ("☀️", "太陽", "正位")]
+    result = _make_spread_table(card_data, revealed={0, 1, 2}, flipping=set())
+    assert isinstance(result, Table)
+
+
+def test_make_spread_table_renders_without_error():
+    from kismet.agent.tools.renderer import _make_spread_table
+    console = _make_console()
+    card_data = [("🌕", "月亮", "正位"), ("💀", "死神", "逆位"), ("☀️", "太陽", "正位")]
+    for revealed, flipping in [
+        (set(), set()),
+        (set(), {0, 1, 2}),
+        ({0}, {1, 2}),
+        ({0, 1}, {2}),
+        ({0, 1, 2}, set()),
+    ]:
+        table = _make_spread_table(card_data, revealed, flipping)
+        console.print(table)
+
+
+from unittest.mock import patch
+
+
+@patch("kismet.agent.tools.renderer.time.sleep")
+def test_show_divination_animation_8_frames(mock_sleep):
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_divination_animation("bf44a92cafe2f8", lucky_match="cafe")
+    assert mock_sleep.call_count == 8
+
+
+@patch("kismet.agent.tools.renderer.time.sleep")
+def test_show_divination_animation_unlucky(mock_sleep):
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_divination_animation("3f7a404deadbeef", unlucky_match="dead")
+    assert mock_sleep.call_count == 8
+
+
+def test_altar_content_returns_renderable():
+    from rich.console import Group
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    content = renderer._altar_content()
+    assert isinstance(content, Group)
+
+
+def test_altar_content_renders_without_error():
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    for frame in range(4):
+        renderer._altar_frame = frame
+        renderer.console.print(renderer._altar_content())
+
+
+def test_show_mining_end_with_log_renders_without_error():
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_mining_start()
+    renderer.show_mining_attempt(1, 10, "abc123", lucky=False, target="cafe")
+    renderer.show_mining_end()
+
+
+def test_show_success_report_contains_key_fields():
+    import re
+    from unittest.mock import MagicMock
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    output = StringIO()
+    renderer.console = Console(file=output, force_terminal=True, width=120)
+
+    session = MagicMock()
+    session.total_cost_usd = 0.0231
+    session.original_predicted_hash = "abc123deadbeef"
+    session.predicted_hash = "def456cafe7890"
+    session.mine_attempts = 12
+    session.k_value = 15
+    session.total_input_tokens = 3000
+    session.total_output_tokens = 821
+
+    renderer.show_success(session, max_attempts=100, new_k_value=87, lucky_match="cafe")
+
+    # Strip ANSI escape codes before asserting plain text content
+    raw = output.getvalue()
+    result = re.sub(r'\x1b\[[0-9;]*m', '', raw)
+    assert "改運嘗試次數" in result
+    assert "12" in result
+    assert "燃燒 Token" in result
+    assert "3,821" in result
+    assert "花費誠意" in result
+    assert "0.0231" in result
+
+
+def test_smoke_row_is_33_chars_wide():
+    from kismet.agent.tools.renderer import _smoke_row
+    for shift in range(4):
+        assert len(_smoke_row(shift)) == 33, f"shift={shift} produced wrong width"
+
+
+def test_smoke_row_shift_moves_first_wisp_left():
+    from kismet.agent.tools.renderer import _smoke_row
+    row0 = _smoke_row(0)
+    row1 = _smoke_row(1)
+    assert row1.index("≀") == row0.index("≀") - 1
+
+
+def test_altar_frame_data_has_4_frames():
+    from kismet.agent.tools.renderer import _ALTAR_FRAME_DATA
+    assert len(_ALTAR_FRAME_DATA) == 4
+
+
+def test_altar_frame_smoke_row_counts():
+    from kismet.agent.tools.renderer import _ALTAR_FRAME_DATA
+    for i, (_, shades, _, _) in enumerate(_ALTAR_FRAME_DATA):
+        assert len(shades) == i + 1, f"Frame {i} should have {i+1} smoke row(s)"
+
+
+def test_show_success_report_not_full_width():
+    import re
+    from unittest.mock import MagicMock
+    from kismet.agent.tools.renderer import RendererTool
+
+    renderer = RendererTool()
+    output = StringIO()
+    renderer.console = Console(file=output, force_terminal=True, width=200, no_color=True)
+
+    session = MagicMock()
+    session.total_cost_usd = 0.01
+    session.original_predicted_hash = "abc"
+    session.predicted_hash = "def"
+    session.mine_attempts = 5
+    session.k_value = 50
+    session.total_input_tokens = 100
+    session.total_output_tokens = 50
+
+    renderer.show_success(session, max_attempts=100, new_k_value=75, lucky_match="a")
+
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    plain = ansi_escape.sub("", output.getvalue())
+    report_lines = [
+        l for l in plain.splitlines()
+        if "改運嘗試次數" in l or "燃燒 Token" in l or "花費誠意" in l
+    ]
+    assert report_lines, "Report rows not found in output"
+    for line in report_lines:
+        assert len(line) < 100, f"Report line too wide ({len(line)}): {line!r}"

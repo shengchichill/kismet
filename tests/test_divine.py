@@ -27,9 +27,7 @@ def mock_config():
 
 def test_divine_returns_divination_result(mock_config):
     payload = json.dumps({
-        "k_value": 23,
-        "tarot_card": "The Tower",
-        "tarot_position": "逆位",
+        "k_value": 15,  # "3f7a404d8c2b" 含 "404" unlucky，tier 強制夾到 0-20
         "reading": "此 hash 帶有不詳之氣，系統崩潰在即。",
     })
     mock_client = MagicMock()
@@ -43,8 +41,8 @@ def test_divine_returns_divination_result(mock_config):
     )
 
     assert isinstance(result, DivinationResult)
-    assert result.k_value == 23
-    assert result.tarot_card == "The Tower"
+    assert result.k_value == 15
+    assert result.tarot_card == "The Moon"   # draw_tarot_card("3f7a404d8c2b") 決定論結果
     assert result.tarot_position == "逆位"
     assert "不詳" in result.reading
     assert result.input_tokens == 120
@@ -88,3 +86,27 @@ def test_rephrase_message_returns_string(mock_config):
     )
     assert message == "feat: implement login functionality"
     assert in_tok == 70
+
+
+from kismet.agent.tools.divine import draw_tarot_card, draw_three_tarot_cards
+
+
+def test_draw_three_tarot_cards_returns_three():
+    cards = draw_three_tarot_cards("bf44a92cafe2f8")
+    assert len(cards) == 3
+    for card, pos in cards:
+        assert isinstance(card, str)
+        assert pos in ("正位", "逆位")
+
+
+def test_draw_three_tarot_cards_first_matches_single():
+    hash_str = "bf44a92cafe2f8"
+    first_card, first_pos = draw_three_tarot_cards(hash_str)[0]
+    single_card, single_pos = draw_tarot_card(hash_str)
+    assert first_card == single_card
+    assert first_pos == single_pos
+
+
+def test_draw_three_tarot_cards_deterministic():
+    h = "3f7a404d8c2bdeadbeef"
+    assert draw_three_tarot_cards(h) == draw_three_tarot_cards(h)
