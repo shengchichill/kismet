@@ -550,12 +550,12 @@ class RendererTool:
         self.console.print()
         self.console.print(Padding(scroll_art, (0, 0, 0, 3)))
         self.console.print()
-        self.console.print(Align.center(Panel(
+        self.console.print(Panel(
             stats,
             title=f"[{GOLD}]🙏 祈福儀式（改運 {session.mine_attempts} 次）🙏[/]",
             border_style=GOLD,
             expand=False,
-        )))
+        ))
 
     def show_exorcism(self) -> None:
         DARK_RED = "#7f1d1d"
