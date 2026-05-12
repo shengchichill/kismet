@@ -421,15 +421,17 @@ class RendererTool:
                 f"  [{k_after_color}]    改運後  {bar_new}  {new_k_value:3d} / 100[/]\n"
             )
 
-        output += (
-            f"\n  [{PURPLE}]┌──────────── 誠心敬意報告 ────────────┐[/]\n"
-            f"  [{PURPLE}]│[/]  [{CYAN}]改運嘗試次數  {session.mine_attempts} / {max_attempts}[/]                [{PURPLE}]│[/]\n"
-            f"  [{PURPLE}]│[/]  [{CYAN}]燃燒 Token    {session.total_input_tokens + session.total_output_tokens:,}[/]              [{PURPLE}]│[/]\n"
-            f"  [{PURPLE}]│[/]  [{GOLD}]花費誠意      {cost_str}  💸[/]       [{PURPLE}]│[/]\n"
-            f"  [{PURPLE}]│[/]  [{MUTED}]花錢消災，物有所值[/]               [{PURPLE}]│[/]\n"
-            f"  [{PURPLE}]└──────────────────────────────────────┘[/]"
-        )
         self.console.print(output)
+
+        report_table = Table.grid(padding=(0, 2))
+        report_table.add_column(style=MUTED)
+        report_table.add_column()
+        total_tokens = session.total_input_tokens + session.total_output_tokens
+        report_table.add_row("改運嘗試次數", f"[{CYAN}]{session.mine_attempts} / {max_attempts}[/]")
+        report_table.add_row("燃燒 Token", f"[{CYAN}]{total_tokens:,}[/]")
+        report_table.add_row("花費誠意", f"[{GOLD}]{cost_str}  💸[/]")
+        report_table.add_row(f"[{MUTED}]花錢消災，物有所值[/]", "")
+        self.console.print(Panel(report_table, title=f"[{PURPLE}]誠心敬意報告[/]", border_style=PURPLE))
 
         if commentary:
             self.console.print(f"\n  [{PURPLE}]✦ 天機批示：[/{PURPLE}]")

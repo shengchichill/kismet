@@ -104,3 +104,33 @@ def test_show_mining_end_with_log_renders_without_error():
     renderer.show_mining_start()
     renderer.show_mining_attempt(1, 10, "abc123", lucky=False, target="cafe")
     renderer.show_mining_end()
+
+
+def test_show_success_report_contains_key_fields():
+    import re
+    from unittest.mock import MagicMock
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    output = StringIO()
+    renderer.console = Console(file=output, force_terminal=True, width=120)
+
+    session = MagicMock()
+    session.total_cost_usd = 0.0231
+    session.original_predicted_hash = "abc123deadbeef"
+    session.predicted_hash = "def456cafe7890"
+    session.mine_attempts = 12
+    session.k_value = 15
+    session.total_input_tokens = 3000
+    session.total_output_tokens = 821
+
+    renderer.show_success(session, max_attempts=100, new_k_value=87, lucky_match="cafe")
+
+    # Strip ANSI escape codes before asserting plain text content
+    raw = output.getvalue()
+    result = re.sub(r'\x1b\[[0-9;]*m', '', raw)
+    assert "改運嘗試次數" in result
+    assert "12" in result
+    assert "燃燒 Token" in result
+    assert "3,821" in result
+    assert "花費誠意" in result
+    assert "0.0231" in result
