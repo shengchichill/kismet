@@ -4,9 +4,12 @@ from collections import deque
 from contextlib import contextmanager
 from typing import Optional
 
-from rich.console import Console
+from rich.align import Align
+from rich.console import Console, Group
 from rich.live import Live
+from rich.panel import Panel
 from rich.status import Status
+from rich.table import Table
 from rich.text import Text
 
 from kismet.agent.tools.divine import DivinationResult
@@ -18,6 +21,34 @@ GOLD = "#fbbf24"
 GREEN = "#4ade80"
 RED = "#f87171"
 MUTED = "#6b7280"
+
+_TAROT_ZH: dict[str, str] = {
+    "The Fool": "愚者", "The Magician": "魔術師",
+    "The High Priestess": "女祭司", "The Empress": "皇后",
+    "The Emperor": "皇帝", "The Hierophant": "教皇",
+    "The Lovers": "戀人", "The Chariot": "戰車",
+    "Strength": "力量", "The Hermit": "隱者",
+    "Wheel of Fortune": "命運之輪", "Justice": "正義",
+    "The Hanged Man": "倒吊人", "Death": "死神",
+    "Temperance": "節制", "The Devil": "惡魔",
+    "The Tower": "高塔", "The Star": "星星",
+    "The Moon": "月亮", "The Sun": "太陽",
+    "Judgement": "審判", "The World": "世界",
+}
+
+_TAROT_EMOJI: dict[str, str] = {
+    "The Fool": "🃏", "The Magician": "🪄",
+    "The High Priestess": "🔮", "The Empress": "⚜️",
+    "The Emperor": "👑", "The Hierophant": "⛪",
+    "The Lovers": "💕", "The Chariot": "🏇",
+    "Strength": "🦁", "The Hermit": "🕯️",
+    "Wheel of Fortune": "☸️", "Justice": "⚖️",
+    "The Hanged Man": "🙃", "Death": "💀",
+    "Temperance": "🫗", "The Devil": "😈",
+    "The Tower": "🗼", "The Star": "🌟",
+    "The Moon": "🌕", "The Sun": "☀️",
+    "Judgement": "📯", "The World": "🌍",
+}
 
 BANNER = f"""[{PINK}]  ██╗  ██╗██╗███████╗███╗   ███╗███████╗████████╗[/]
 [{PINK}]  ██║ ██╔╝██║██╔════╝████╗ ████║██╔════╝╚══██╔══╝[/]
@@ -67,11 +98,58 @@ _ALTAR_FLAMES = [
      f"[{RED}]          ~ || | || ~ | || ~[/]\n"),
 ]
 
-def _tarot_card_row(cards: list[tuple[str, str, str]]) -> str:
-    tops = "".join("┌─────┐  " for _ in cards)
-    mids = "".join(f"│[{c}] {icon[:5].ljust(5)} [/{c}]│  " for _, icon, c in cards)
-    bots = "".join("└─────┘  " for _ in cards)
-    return f"  {tops}\n  {mids}\n  {bots}"
+def _make_card_panel(emoji: str, name: str, pos: str, state: str) -> Panel:
+    """Return a Rich Panel for one tarot card in the given display state."""
+    if state == "facedown":
+        content = Align.center("░░░", vertical="middle")
+        border_style = PURPLE
+    elif state == "flipping":
+        content = Align.center("▓▓▓", vertical="middle")
+        border_style = GOLD
+    else:
+        content = Align.center(
+            Text.from_markup(f"{emoji}\n[{CYAN}]{name}[/]\n[{MUTED}]{pos}[/]"),
+            vertical="middle",
+        )
+        border_style = CYAN
+    return Panel(content, border_style=border_style, padding=(1, 2))
+
+
+def _make_spread_table(
+    card_data: list[tuple[str, str, str]],
+    revealed: set[int],
+    flipping: set[int],
+) -> Table:
+    """Return a 3-column Table with card panels + spread labels.
+
+    card_data: list of (emoji, zh_name, position) for each of the 3 cards.
+    revealed: indices of cards to show face-up.
+    flipping: indices of cards to show mid-flip (▓▓▓).
+    """
+    table = Table.grid(padding=(0, 3))
+    for _ in range(3):
+        table.add_column(justify="center")
+
+    panels, pos_texts = [], []
+    for i, (emoji, name, pos) in enumerate(card_data):
+        if i in revealed:
+            panels.append(_make_card_panel(emoji, name, pos, "revealed"))
+            pos_texts.append(Text(pos, style=MUTED))
+        elif i in flipping:
+            panels.append(_make_card_panel(emoji, name, pos, "flipping"))
+            pos_texts.append(Text(""))
+        else:
+            panels.append(_make_card_panel(emoji, name, pos, "facedown"))
+            pos_texts.append(Text(""))
+
+    table.add_row(*panels)
+    table.add_row(*pos_texts)
+    table.add_row(
+        Text("過去", style=MUTED),
+        Text("現在", style=MUTED),
+        Text("未來", style=MUTED),
+    )
+    return table
 
 
 def _highlight_hash(
