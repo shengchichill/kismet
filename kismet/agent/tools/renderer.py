@@ -67,9 +67,6 @@ _ALTAR_FLAMES = [
      f"[{RED}]          ~ || | || ~ | || ~[/]\n"),
 ]
 
-_BAD_STRINGS = {"dead", "404", "bad", "f001", "0ff", "fa11", "beef", "deaf"}
-
-
 def _tarot_card_row(cards: list[tuple[str, str, str]]) -> str:
     tops = "".join("┌─────┐  " for _ in cards)
     mids = "".join(f"│[{c}] {icon[:5].ljust(5)} [/{c}]│  " for _, icon, c in cards)
@@ -77,23 +74,32 @@ def _tarot_card_row(cards: list[tuple[str, str, str]]) -> str:
     return f"  {tops}\n  {mids}\n  {bots}"
 
 
-def _highlight_hash(hash_str: str, lucky_match: Optional[str]) -> str:
-    """Return Rich markup with the lucky substring highlighted in bold green."""
-    if not lucky_match:
-        return f"[{CYAN}]{hash_str}[/]"
-    idx = hash_str.lower().find(lucky_match.lower())
-    if idx < 0:
-        return f"[{CYAN}]{hash_str}[/]"
-    before = hash_str[:idx]
-    match = hash_str[idx : idx + len(lucky_match)]
-    after = hash_str[idx + len(lucky_match) :]
-    result = ""
-    if before:
-        result += f"[{CYAN}]{before}[/]"
-    result += f"[{GREEN}][bold]{match}[/bold][/]"
-    if after:
-        result += f"[{CYAN}]{after}[/]"
-    return result
+def _highlight_hash(
+    hash_str: str,
+    lucky_match: Optional[str] = None,
+    unlucky_match: Optional[str] = None,
+) -> str:
+    """Return Rich markup with the lucky (green) or unlucky (red) substring highlighted."""
+    h = hash_str.lower()
+
+    # Unlucky takes priority
+    target = unlucky_match or lucky_match
+    color = RED if unlucky_match else GREEN
+    if target:
+        idx = h.find(target.lower())
+        if idx >= 0:
+            before = hash_str[:idx]
+            matched = hash_str[idx : idx + len(target)]
+            after = hash_str[idx + len(target) :]
+            result = ""
+            if before:
+                result += f"[{CYAN}]{before}[/]"
+            result += f"[{color}][bold]{matched}[/bold][/]"
+            if after:
+                result += f"[{CYAN}]{after}[/]"
+            return result
+
+    return f"[{CYAN}]{hash_str}[/]"
 
 
 class RendererTool:
@@ -127,8 +133,14 @@ class RendererTool:
         self.console.print()
         time.sleep(0.3)
 
-    def show_divination_animation(self, hash_str: str) -> None:
-        bad_chars = any(s in hash_str.lower() for s in _BAD_STRINGS)
+    def show_divination_animation(
+        self,
+        hash_str: str,
+        lucky_match: Optional[str] = None,
+        unlucky_match: Optional[str] = None,
+    ) -> None:
+        has_unlucky = unlucky_match is not None
+        has_lucky = lucky_match is not None
 
         with Live(console=self.console, refresh_per_second=4) as live:
             # Frame A: cards dealing
@@ -141,17 +153,27 @@ class RendererTool:
             live.update(text)
             time.sleep(1.0)
 
-            # Frame B: all revealed
-            crystal_color = RED if bad_chars else GREEN
+            # Frame B: all revealed (this remains on screen after Live exits)
             cards_b = [
                 ("FOOL ", "🃏   ", CYAN),
                 ("WHEEL", "☸    ", CYAN),
-                ("TOWER", "⚡💀 ", RED if bad_chars else GOLD),
+                ("TOWER", "⚡💀 ", RED if has_unlucky else GOLD),
             ]
+            hash_display = _highlight_hash(hash_str, lucky_match=lucky_match, unlucky_match=unlucky_match)
+            if has_unlucky:
+                hash_line = f"  hash: {hash_display}  [{RED}]⚡ 不詳！含 {unlucky_match}[/]"
+                status_line = f"[{RED}]  ⚠  水晶球異動：hash 含不詳字符[/]"
+            elif has_lucky:
+                hash_line = f"  hash: {hash_display}  [{GREEN}]✦ 吉兆！含 {lucky_match}[/]"
+                status_line = f"[{GREEN}]  ✦  氣場穩定，吉兆降臨[/]"
+            else:
+                hash_line = f"  hash: {hash_display}"
+                status_line = f"[{GREEN}]  ✦  氣場穩定[/]"
             text2 = Text.from_markup(
                 f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]\n\n"
                 + _tarot_card_row(cards_b)
-                + (f"\n\n[{RED}]  ⚠  水晶球異動：hash 含不詳字符[/]" if bad_chars else f"\n\n[{GREEN}]  ✦  氣場穩定[/]")
+                + f"\n\n  {hash_line}\n\n"
+                + f"  {status_line}"
             )
             live.update(text2)
             time.sleep(1.2)

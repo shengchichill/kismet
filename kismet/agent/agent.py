@@ -62,8 +62,16 @@ class KismetAgent:
         return contextlib.nullcontext()
 
     def _run_divination(self, session: KismetSession) -> None:
+        from kismet.agent.tools.mine import find_lucky_match, find_unlucky_match
+
         write_state("divine")
-        self.renderer.show_divination_animation(session.predicted_hash)
+        unlucky_match = find_unlucky_match(session.predicted_hash)
+        lucky_match = find_lucky_match(session.predicted_hash, [])
+        self.renderer.show_divination_animation(
+            session.predicted_hash,
+            lucky_match=lucky_match,
+            unlucky_match=unlucky_match,
+        )
         with self.renderer.divination_spinner(session.predicted_hash):
             result = self.divine.divine(session.predicted_hash, session.current_message, session.diff)
         self._add_tokens(session, result.input_tokens, result.output_tokens)
