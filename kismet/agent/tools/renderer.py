@@ -74,12 +74,36 @@ EXORCISM_ART = f"""[{RED}]
   「雖違宇宙法則，誠意已達，特此驅魔。」
 [/]"""
 
-_ALTAR_FLAME_FRAMES: list[str] = [
-    f"[{MUTED}]~   ~  ~    ~  ~[/]",
-    f"[{GOLD}]~ ~ ~  ~~ ~ ~ ~  ~[/]",
-    f"[{RED}]~~ ~ ~~  ~~ ~ ~~  ~[/]",
-    f"[{PINK}]*  ~ ~~  ~ * ~~ ~ *[/]",
+# ── Incense altar ASCII components (all 33 terminal columns wide) ──────────
+_INCENSE_TIPS   = "      *    *    *    *    *      "
+_INCENSE_STICKS = "      │    │    │    │    │      "
+_ALTAR_TOP      = "╔═════╧════╧════╧════╧════╧═════╗"
+_ALTAR_COL_SP   = "║ ▐█▌                       ▐█▌ ║"
+_ALTAR_BODY     = "║ ▐█▌ 🔥 焚燒 Token 祭壇 🔥 ▐█▌ ║"
+_ALTAR_SEP      = "╠═══════════════════════════════╣"
+_ALTAR_ASH_N    = "║ " + "░ " * 15 + "║"        # frames 0-1: static ash
+_ALTAR_ASH_R    = "║ ░ · ░ ░ · ░ ░ · ░ ░ · ░ ░ · ░ ║"  # frame 2: red embers
+_ALTAR_ASH_P    = "║ · ░ · ░ · ░ · ░ · ░ · ░ · ░ · ║"  # frame 3: purple embers
+_ALTAR_BOT      = "╚═══════════════════════════════╝"
+_ALTAR_BASE     = "    ████    ████    ████    ████  "
+_ORANGE         = "#fb8c00"   # incense stick colour
+_INCENSE_TIP_C  = "#ef9a9a"   # incense tip colour
+_BROWN          = "#4e342e"   # base stone colour
+_ASH_DIM        = "#424242"   # dim ash colour (frames 0-1)
+
+# Each entry: (altar_border_color, smoke_shades[top→bottom], ash_line, ash_color)
+# smoke_shades: darkest at index 0 (top / oldest smoke), primary at last index (bottom / fresh)
+_ALTAR_FRAME_DATA: list[tuple[str, list[str], str, str]] = [
+    ("#607d8b", ["#607d8b"],                                           _ALTAR_ASH_N, _ASH_DIM),
+    ("#ffd54f", ["#f9a825", "#ffd54f"],                                _ALTAR_ASH_N, _ASH_DIM),
+    ("#ef5350", ["#b71c1c", "#e53935", "#ef5350"],                     _ALTAR_ASH_R, "#ef5350"),
+    ("#ce93d8", ["#4a148c", "#7b1fa2", "#ab47bc", "#ce93d8"],          _ALTAR_ASH_P, "#ce93d8"),
 ]
+
+
+def _smoke_row(shift: int) -> str:
+    """One 33-char row of incense smoke; shift > 0 moves wisps left (upward drift)."""
+    return " " * (6 - shift) + "≀" + "    ≀" * 4 + " " * (6 + shift)
 
 
 def _make_card_panel(emoji: str, name: str, pos: str, state: str) -> Panel:
@@ -174,20 +198,40 @@ class RendererTool:
         self._altar_thread: Optional[threading.Thread] = None
 
     def _altar_content(self) -> Group:
-        flames = _ALTAR_FLAME_FRAMES[self._altar_frame % len(_ALTAR_FLAME_FRAMES)]
+        altar_color, smoke_shades, ash_line, ash_color = (
+            _ALTAR_FRAME_DATA[self._altar_frame % len(_ALTAR_FRAME_DATA)]
+        )
+
+        lines: list[str] = []
+
+        # Smoke rows — more rows per frame, drifting left as they rise
+        for i, shade in enumerate(smoke_shades):
+            shift = len(smoke_shades) - 1 - i  # bottom row = shift 0 (nearest tips)
+            lines.append(f"[{shade}]{_smoke_row(shift)}[/]")
+
+        # Incense tips and sticks (fixed colours)
+        lines.append(f"[{_INCENSE_TIP_C}]{_INCENSE_TIPS}[/]")
+        lines.append(f"[{_ORANGE}]{_INCENSE_STICKS}[/]")
+
+        # Altar box
+        for part in [_ALTAR_TOP, _ALTAR_COL_SP, _ALTAR_BODY, _ALTAR_COL_SP, _ALTAR_SEP]:
+            lines.append(f"[{altar_color}]{part}[/]")
+
+        # Ash layer
+        lines.append(f"[{ash_color}]{ash_line}[/]")
+
+        # Bottom and base
+        lines.append(f"[{altar_color}]{_ALTAR_BOT}[/]")
+        lines.append(f"[{_BROWN}]{_ALTAR_BASE}[/]")
+
+        altar_art = Align.center(Text.from_markup("\n".join(lines)))
         header = Panel(
             Align.center("正在燃燒 Token 祭天，請耐心等候..."),
             title=f"[{GOLD}]⚒ 逆天改運中 ⚒[/]",
             border_style=PURPLE,
+            expand=False,
         )
-        altar = Panel(
-            Align.center(
-                Text.from_markup(f"[{GOLD}]🔥 焚燒 Token 祭壇 🔥[/]\n\n{flames}")
-            ),
-            border_style=GOLD,
-            padding=(0, 6),
-        )
-        return Group(header, altar)
+        return Group(header, altar_art)
 
     def _animate_altar(self) -> None:
         while not self._altar_stop.is_set():

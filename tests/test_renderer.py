@@ -134,3 +134,27 @@ def test_show_success_report_contains_key_fields():
     assert "3,821" in result
     assert "花費誠意" in result
     assert "0.0231" in result
+
+
+def test_smoke_row_is_33_chars_wide():
+    from kismet.agent.tools.renderer import _smoke_row
+    for shift in range(4):
+        assert len(_smoke_row(shift)) == 33, f"shift={shift} produced wrong width"
+
+
+def test_smoke_row_shift_moves_first_wisp_left():
+    from kismet.agent.tools.renderer import _smoke_row
+    row0 = _smoke_row(0)
+    row1 = _smoke_row(1)
+    assert row1.index("≀") == row0.index("≀") - 1
+
+
+def test_altar_frame_data_has_4_frames():
+    from kismet.agent.tools.renderer import _ALTAR_FRAME_DATA
+    assert len(_ALTAR_FRAME_DATA) == 4
+
+
+def test_altar_frame_smoke_row_counts():
+    from kismet.agent.tools.renderer import _ALTAR_FRAME_DATA
+    for i, (_, shades, _, _) in enumerate(_ALTAR_FRAME_DATA):
+        assert len(shades) == i + 1, f"Frame {i} should have {i+1} smoke row(s)"
