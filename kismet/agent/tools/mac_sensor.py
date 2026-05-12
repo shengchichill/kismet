@@ -55,6 +55,9 @@ def post_kismet_event(event_name: str, summary: str = "", timeout: float = 0.15,
 
 def is_prayer_pose_active(snapshot: dict[str, Any], min_confidence: float = 0.62) -> bool:
     """Return True when MacSensorAgent sees any accepted mining ritual."""
+    if is_ritual_spell_accepted(snapshot):
+        return True
+
     if is_ritual_music_accepted(snapshot):
         return True
 
@@ -68,6 +71,19 @@ def is_prayer_pose_active(snapshot: dict[str, Any], min_confidence: float = 0.62
         and isinstance(snapshot.get("latestPrayerPoseHandCount"), int)
         and snapshot["latestPrayerPoseHandCount"] >= 2
     )
+
+
+def is_ritual_spell_accepted(snapshot: dict[str, Any]) -> bool:
+    ritual_spell = snapshot.get("ritualSpell")
+    return isinstance(ritual_spell, dict) and ritual_spell.get("accepted") is True
+
+
+def ritual_spell_status(snapshot: dict[str, Any]) -> str | None:
+    ritual_spell = snapshot.get("ritualSpell")
+    if not isinstance(ritual_spell, dict):
+        return None
+    reason = ritual_spell.get("reason")
+    return reason if isinstance(reason, str) and reason else None
 
 
 def is_ritual_music_accepted(snapshot: dict[str, Any]) -> bool:
@@ -115,6 +131,9 @@ def prayer_pose_status(snapshot: dict[str, Any]) -> str:
     if is_forbidden_kuai_kuai_offering(snapshot):
         color, confidence = _kuai_kuai_offering(snapshot)
         return _forbidden_kuai_kuai_message(color or "non-green", confidence)
+
+    if is_ritual_spell_accepted(snapshot):
+        return ritual_spell_status(snapshot) or "ritual spell accepted"
 
     if is_ritual_music_accepted(snapshot):
         return ritual_music_status(snapshot) or "ritual music accepted"
@@ -167,6 +186,8 @@ def wait_for_prayer_pose(
             last_snapshot = snapshot
             if is_forbidden_kuai_kuai_offering(snapshot):
                 return False, prayer_pose_status(snapshot), snapshot
+            if is_ritual_spell_accepted(snapshot):
+                return True, ritual_spell_status(snapshot) or "ritual spell accepted", snapshot
             if is_ritual_music_accepted(snapshot):
                 return True, ritual_music_status(snapshot) or "ritual music accepted", snapshot
             if is_green_kuai_kuai_offering(snapshot):
@@ -215,6 +236,11 @@ def format_mining_omen(snapshot: dict[str, Any]) -> str:
     if isinstance(ritual_music, dict) and ritual_music.get("accepted") is True:
         matched = ritual_music.get("matchedRule")
         parts.append(f"ritual music {matched if isinstance(matched, str) else 'accepted'}")
+
+    ritual_spell = snapshot.get("ritualSpell")
+    if isinstance(ritual_spell, dict) and ritual_spell.get("accepted") is True:
+        phrase = ritual_spell.get("phrase")
+        parts.append(f"ritual spell {phrase if isinstance(phrase, str) else 'accepted'}")
 
     camera = snapshot.get("camera") if isinstance(snapshot.get("camera"), dict) else {}
     devices = camera.get("devices") if isinstance(camera, dict) else []

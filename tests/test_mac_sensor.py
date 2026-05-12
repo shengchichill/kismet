@@ -8,9 +8,11 @@ from kismet.agent.tools.mac_sensor import (
     is_green_kuai_kuai_offering,
     is_prayer_pose_active,
     is_ritual_music_accepted,
+    is_ritual_spell_accepted,
     post_kismet_event,
     prayer_pose_status,
     ritual_music_status,
+    ritual_spell_status,
     wait_for_prayer_pose,
 )
 
@@ -68,6 +70,11 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
                 "reason": "matched ritual song: Queen - Don't Stop Me Now",
                 "matchedRule": "Queen - Don't Stop Me Now",
             },
+            "ritualSpell": {
+                "accepted": True,
+                "phrase": "kismet open",
+                "reason": "recognized ritual spell: kismet open",
+            },
             "camera": {
                 "authorizationStatus": "authorized",
                 "devices": [{"localizedName": "FaceTime HD Camera"}],
@@ -81,6 +88,7 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
     assert "prayer pose 0.88" in omen
     assert "Kuai Kuai green 0.78" in omen
     assert "ritual music Queen - Don't Stop Me Now" in omen
+    assert "ritual spell kismet open" in omen
     assert "camera devices 1" in omen
     assert "camera authorized" in omen
 
@@ -148,6 +156,24 @@ def test_ritual_music_opens_ritual_gate_without_camera():
     assert prayer_pose_status(snapshot) == "matched ritual song: Darude - Sandstorm"
 
 
+def test_ritual_spell_opens_ritual_gate_without_camera():
+    snapshot = {
+        "latestPrayerPoseActive": False,
+        "latestPrayerPoseConfidence": 0.0,
+        "latestPrayerPoseHandCount": 0,
+        "ritualSpell": {
+            "accepted": True,
+            "phrase": "unlock ritual",
+            "reason": "recognized ritual spell: unlock ritual",
+        },
+    }
+
+    assert is_ritual_spell_accepted(snapshot) is True
+    assert is_prayer_pose_active(snapshot) is True
+    assert ritual_spell_status(snapshot) == "recognized ritual spell: unlock ritual"
+    assert prayer_pose_status(snapshot) == "recognized ritual spell: unlock ritual"
+
+
 def test_non_green_kuai_kuai_is_forbidden():
     snapshot = {
         "latestKuaiKuaiDetected": True,
@@ -209,6 +235,22 @@ def test_wait_for_prayer_pose_accepts_ritual_music():
         assert wait_for_prayer_pose(timeout=0) == (
             True,
             "matched ritual song: Rick Astley - Never Gonna Give You Up",
+            snapshot,
+        )
+
+
+def test_wait_for_prayer_pose_accepts_ritual_spell():
+    snapshot = {
+        "ritualSpell": {
+            "accepted": True,
+            "phrase": "bless this hash",
+            "reason": "recognized ritual spell: bless this hash",
+        }
+    }
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
+        assert wait_for_prayer_pose(timeout=0) == (
+            True,
+            "recognized ritual spell: bless this hash",
             snapshot,
         )
 
