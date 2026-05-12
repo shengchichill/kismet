@@ -27,9 +27,7 @@ def mock_config():
 
 def test_divine_returns_divination_result(mock_config):
     payload = json.dumps({
-        "k_value": 23,
-        "tarot_card": "The Tower",
-        "tarot_position": "逆位",
+        "k_value": 15,  # "3f7a404d8c2b" 含 "404" unlucky，tier 強制夾到 0-20
         "reading": "此 hash 帶有不詳之氣，系統崩潰在即。",
     })
     mock_client = MagicMock()
@@ -43,8 +41,8 @@ def test_divine_returns_divination_result(mock_config):
     )
 
     assert isinstance(result, DivinationResult)
-    assert result.k_value == 23
-    assert result.tarot_card == "The Tower"
+    assert result.k_value == 15
+    assert result.tarot_card == "The Moon"   # draw_tarot_card("3f7a404d8c2b") 決定論結果
     assert result.tarot_position == "逆位"
     assert "不詳" in result.reading
     assert result.input_tokens == 120
