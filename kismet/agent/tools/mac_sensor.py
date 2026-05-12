@@ -128,15 +128,21 @@ def prayer_pose_status(snapshot: dict[str, Any]) -> str:
     if not snapshot:
         return "MacSensorAgent snapshot unavailable; start MacSensorAgent and grant camera permission"
 
-    if is_forbidden_kuai_kuai_offering(snapshot):
-        color, confidence = _kuai_kuai_offering(snapshot)
-        return _forbidden_kuai_kuai_message(color or "non-green", confidence)
-
     if is_ritual_spell_accepted(snapshot):
         return ritual_spell_status(snapshot) or "ritual spell accepted"
 
     if is_ritual_music_accepted(snapshot):
         return ritual_music_status(snapshot) or "ritual music accepted"
+
+    if is_green_kuai_kuai_offering(snapshot):
+        return "green Kuai Kuai offering confirmed"
+
+    if is_prayer_pose_active(snapshot):
+        return "prayer pose confirmed"
+
+    if is_forbidden_kuai_kuai_offering(snapshot):
+        color, confidence = _kuai_kuai_offering(snapshot)
+        return _forbidden_kuai_kuai_message(color or "non-green", confidence)
 
     camera = snapshot.get("camera") if isinstance(snapshot.get("camera"), dict) else {}
     auth = camera.get("authorizationStatus") if isinstance(camera, dict) else None
@@ -152,7 +158,7 @@ def _forbidden_kuai_kuai_message(color: str, confidence: float) -> str:
     color_name = _kuai_kuai_color_name(color)
     return (
         f"forbidden {color_name} Kuai Kuai offering detected "
-        f"(confidence={confidence:.2f}); mining terminated before the machine spirits get confused"
+        f"(confidence={confidence:.2f}); noted but not blocking because ritual gates are OR-based"
     )
 
 
@@ -184,8 +190,6 @@ def wait_for_prayer_pose(
         snapshot = get_sensor_snapshot(timeout=snapshot_timeout)
         if snapshot:
             last_snapshot = snapshot
-            if is_forbidden_kuai_kuai_offering(snapshot):
-                return False, prayer_pose_status(snapshot), snapshot
             if is_ritual_spell_accepted(snapshot):
                 return True, ritual_spell_status(snapshot) or "ritual spell accepted", snapshot
             if is_ritual_music_accepted(snapshot):

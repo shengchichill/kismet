@@ -174,7 +174,7 @@ def test_ritual_spell_opens_ritual_gate_without_camera():
     assert prayer_pose_status(snapshot) == "recognized ritual spell: unlock ritual"
 
 
-def test_non_green_kuai_kuai_is_forbidden():
+def test_non_green_kuai_kuai_is_status_only():
     snapshot = {
         "latestKuaiKuaiDetected": True,
         "latestKuaiKuaiColor": "yellow",
@@ -184,6 +184,7 @@ def test_non_green_kuai_kuai_is_forbidden():
     assert is_forbidden_kuai_kuai_offering(snapshot) is True
     assert is_prayer_pose_active(snapshot) is False
     assert "forbidden yellow Kuai Kuai" in prayer_pose_status(snapshot)
+    assert "not blocking" in prayer_pose_status(snapshot)
 
 
 def test_prayer_pose_status_reports_camera_permission():
@@ -255,18 +256,38 @@ def test_wait_for_prayer_pose_accepts_ritual_spell():
         )
 
 
-def test_wait_for_prayer_pose_immediately_blocks_forbidden_kuai_kuai():
+def test_wait_for_prayer_pose_does_not_veto_accepted_gate_with_forbidden_kuai_kuai():
+    snapshot = {
+        "latestKuaiKuaiDetected": True,
+        "latestKuaiKuaiColor": "red",
+        "latestKuaiKuaiConfidence": 0.82,
+        "ritualSpell": {
+            "accepted": True,
+            "phrase": "unlock ritual",
+            "reason": "recognized ritual spell: unlock ritual",
+        },
+    }
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
+        ok, reason, result_snapshot = wait_for_prayer_pose(timeout=15)
+
+    assert ok is True
+    assert result_snapshot == snapshot
+    assert reason == "recognized ritual spell: unlock ritual"
+
+
+def test_wait_for_prayer_pose_times_out_with_forbidden_kuai_kuai_when_no_gate_passes():
     snapshot = {
         "latestKuaiKuaiDetected": True,
         "latestKuaiKuaiColor": "red",
         "latestKuaiKuaiConfidence": 0.82,
     }
     with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
-        ok, reason, result_snapshot = wait_for_prayer_pose(timeout=15)
+        ok, reason, result_snapshot = wait_for_prayer_pose(timeout=0)
 
     assert ok is False
     assert result_snapshot == snapshot
     assert "forbidden red Kuai Kuai" in reason
+    assert "not blocking" in reason
 
 
 def test_wait_for_prayer_pose_times_out_when_offline():

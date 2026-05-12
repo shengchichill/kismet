@@ -125,7 +125,7 @@ kismet mine              # default lucky list: 888 168 777 666 + palindromes + r
 kismet mine 888 168      # custom targets
 ```
 
-`kismet mine` requires MacSensorAgent to confirm a two-hand prayer pose or green Kuai Kuai offering before every mining attempt. Start MacSensorAgent first, grant camera permission, then hold both hands together facing the camera or place green Kuai Kuai in view when prompted. If the ritual is not confirmed within `KISMET_PRAYER_POSE_TIMEOUT`, mining stops before rephrasing the message or committing anything. If yellow, red, or other non-green Kuai Kuai appears, mining stops immediately because that is how you anger a server rack.
+`kismet mine` requires MacSensorAgent to confirm at least one accepted ritual gate before every mining attempt. Start MacSensorAgent first, grant the needed permissions, then hold both hands together facing the camera, place green Kuai Kuai in view, play accepted ritual music, or say an accepted ritual spell when prompted. The gates are OR-based: any accepted gate passes the ritual. Yellow, red, or other non-green Kuai Kuai is reported as an omen/status, but it no longer vetoes another accepted gate. If no ritual is confirmed within `KISMET_PRAYER_POSE_TIMEOUT`, mining stops before rephrasing the message or committing anything.
 
 KISMET also shows a `Mac sensor omen` line from the local snapshot API and posts mining progress back to MacSensorAgent so the Vibe Island can show KISMET attempts, lucky matches, blocked rituals, and completion state. Set `KISMET_REQUIRE_PRAYER_POSE=0` only if you explicitly want the old fail-open behavior.
 
