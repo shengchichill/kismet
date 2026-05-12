@@ -88,3 +88,27 @@ def test_rephrase_message_returns_string(mock_config):
     )
     assert message == "feat: implement login functionality"
     assert in_tok == 70
+
+
+from kismet.agent.tools.divine import draw_tarot_card, draw_three_tarot_cards
+
+
+def test_draw_three_tarot_cards_returns_three():
+    cards = draw_three_tarot_cards("bf44a92cafe2f8")
+    assert len(cards) == 3
+    for card, pos in cards:
+        assert isinstance(card, str)
+        assert pos in ("正位", "逆位")
+
+
+def test_draw_three_tarot_cards_first_matches_single():
+    hash_str = "bf44a92cafe2f8"
+    first_card, first_pos = draw_three_tarot_cards(hash_str)[0]
+    single_card, single_pos = draw_tarot_card(hash_str)
+    assert first_card == single_card
+    assert first_pos == single_pos
+
+
+def test_draw_three_tarot_cards_deterministic():
+    h = "3f7a404d8c2bdeadbeef"
+    assert draw_three_tarot_cards(h) == draw_three_tarot_cards(h)

@@ -55,6 +55,13 @@ def draw_tarot_card(hash_str: str) -> tuple[str, str]:
     return card, position
 
 
+def draw_three_tarot_cards(hash_str: str) -> list[tuple[str, str]]:
+    """Draw three Major Arcana cards deterministically. First card matches draw_tarot_card."""
+    seed = int(hash_str, 16)
+    rng = random.Random(seed)
+    return [(rng.choice(_MAJOR_ARCANA), rng.choice(["正位", "逆位"])) for _ in range(3)]
+
+
 def _describe_lucky_pattern(match: Optional[str]) -> str:
     if match is None:
         return "None"
