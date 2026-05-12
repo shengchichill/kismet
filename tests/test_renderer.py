@@ -95,3 +95,12 @@ def test_altar_content_renders_without_error():
     for frame in range(4):
         renderer._altar_frame = frame
         renderer.console.print(renderer._altar_content())
+
+
+def test_show_mining_end_with_log_renders_without_error():
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_mining_start()
+    renderer.show_mining_attempt(1, 10, "abc123", lucky=False, target="cafe")
+    renderer.show_mining_end()

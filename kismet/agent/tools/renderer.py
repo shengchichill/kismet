@@ -81,6 +81,7 @@ _ALTAR_FLAME_FRAMES: list[str] = [
     f"[{PINK}]*  ~ ~~  ~ * ~~ ~ *[/]",
 ]
 
+
 def _make_card_panel(emoji: str, name: str, pos: str, state: str) -> Panel:
     """Return a Rich Panel for one tarot card in the given display state."""
     if state == "facedown":
