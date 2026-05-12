@@ -27,7 +27,7 @@ class Config:
     def get_model_costs(self) -> Optional[ModelCosts]:
         if self._costs_cache is None:
             try:
-                with open(self._costs_path) as f:
+                with open(self._costs_path, encoding="utf-8") as f:
                     self._costs_cache = yaml.safe_load(f) or {}
             except FileNotFoundError:
                 self._costs_cache = {}
