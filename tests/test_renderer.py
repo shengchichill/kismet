@@ -78,3 +78,20 @@ def test_show_divination_animation_unlucky(mock_sleep):
     renderer.console = _make_console()
     renderer.show_divination_animation("3f7a404deadbeef", unlucky_match="dead")
     assert mock_sleep.call_count == 8
+
+
+def test_altar_content_returns_renderable():
+    from rich.console import Group
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    content = renderer._altar_content()
+    assert isinstance(content, Group)
+
+
+def test_altar_content_renders_without_error():
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    for frame in range(4):
+        renderer._altar_frame = frame
+        renderer.console.print(renderer._altar_content())

@@ -74,28 +74,11 @@ EXORCISM_ART = f"""[{RED}]
   「雖違宇宙法則，誠意已達，特此驅魔。」
 [/]"""
 
-_ALTAR_HEADER = (
-    f"\n[{PURPLE}]  ╔════════════ ⚒ 逆天改運中 ⚒ ════════════╗[/]\n"
-    f"[{GOLD}]  ║  正在燃燒 Token 祭天，請耐心等候...      ║[/]\n"
-    f"[{PURPLE}]  ╚════════════════════════════════════════╝[/]\n\n"
-)
-
-_ALTAR_BODY = (
-    f"[{GOLD}]          _|_|_|_|_|_|_|_|_|__[/]\n"
-    f"[{GOLD}]         |  🔥 焚燒 Token 祭壇 🔥  |[/]\n"
-    f"[{GOLD}]         |________________________|[/]\n"
-)
-
-# Four animation frames: calm → rising → high → sparks
-_ALTAR_FLAMES = [
-    (f"[{MUTED}]            ~   ~  ~    ~  ~[/]\n"
-     f"[{GOLD}]            | | | | | | | | |[/]\n"),
-    (f"[{GOLD}]          ~ ~ ~  ~~ ~ ~ ~  ~[/]\n"
-     f"[{RED}]            | | || | | || | |[/]\n"),
-    (f"[{RED}]         ~~ ~ ~~  ~~ ~ ~~  ~[/]\n"
-     f"[{RED}]          || | ||  | || | ||[/]\n"),
-    (f"[{PINK}]       *  ~ ~~  ~ * ~~ ~ *[/]\n"
-     f"[{RED}]          ~ || | || ~ | || ~[/]\n"),
+_ALTAR_FLAME_FRAMES: list[str] = [
+    f"[{MUTED}]~   ~  ~    ~  ~[/]",
+    f"[{GOLD}]~ ~ ~  ~~ ~ ~ ~  ~[/]",
+    f"[{RED}]~~ ~ ~~  ~~ ~ ~~  ~[/]",
+    f"[{PINK}]*  ~ ~~  ~ * ~~ ~ *[/]",
 ]
 
 def _make_card_panel(emoji: str, name: str, pos: str, state: str) -> Panel:
@@ -189,18 +172,35 @@ class RendererTool:
         self._altar_stop: threading.Event = threading.Event()
         self._altar_thread: Optional[threading.Thread] = None
 
-    def _altar_content(self) -> str:
-        flames = _ALTAR_FLAMES[self._altar_frame % len(_ALTAR_FLAMES)]
-        return _ALTAR_HEADER + flames + _ALTAR_BODY
+    def _altar_content(self) -> Group:
+        flames = _ALTAR_FLAME_FRAMES[self._altar_frame % len(_ALTAR_FLAME_FRAMES)]
+        header = Panel(
+            Align.center("正在燃燒 Token 祭天，請耐心等候..."),
+            title=f"[{GOLD}]⚒ 逆天改運中 ⚒[/]",
+            border_style=PURPLE,
+        )
+        altar = Panel(
+            Align.center(
+                Text.from_markup(f"[{GOLD}]🔥 焚燒 Token 祭壇 🔥[/]\n\n{flames}")
+            ),
+            border_style=GOLD,
+            padding=(0, 6),
+        )
+        return Group(header, altar)
 
     def _animate_altar(self) -> None:
         while not self._altar_stop.is_set():
             self._altar_frame += 1
             live = self._mining_live
             if live is not None:
-                content = self._altar_content() + "\n" + "\n".join(self._mining_log)
+                altar = self._altar_content()
+                content = (
+                    Group(altar, Text.from_markup("\n".join(self._mining_log)))
+                    if self._mining_log
+                    else altar
+                )
                 try:
-                    live.update(Text.from_markup(content))
+                    live.update(content)
                 except Exception:
                     pass
             self._altar_stop.wait(timeout=0.35)
@@ -356,7 +356,7 @@ class RendererTool:
         self._altar_stop.clear()
         self._mining_live = Live(console=self.console, refresh_per_second=8)
         self._mining_live.start()
-        self._mining_live.update(Text.from_markup(self._altar_content()))
+        self._mining_live.update(self._altar_content())
         self._altar_thread = threading.Thread(target=self._animate_altar, daemon=True)
         self._altar_thread.start()
 
@@ -376,9 +376,13 @@ class RendererTool:
             self._altar_thread.join(timeout=1.0)
             self._altar_thread = None
         if self._mining_live:
-            # 做最後一次 render，確保 lucky line（若有）被納入最終畫面
-            content = self._altar_content() + "\n" + "\n".join(self._mining_log)
-            self._mining_live.update(Text.from_markup(content))
+            altar = self._altar_content()
+            content = (
+                Group(altar, Text.from_markup("\n".join(self._mining_log)))
+                if self._mining_log
+                else altar
+            )
+            self._mining_live.update(content)
             self._mining_live.stop()
             self._mining_live = None
 
