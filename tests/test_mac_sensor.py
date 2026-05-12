@@ -7,8 +7,10 @@ from kismet.agent.tools.mac_sensor import (
     is_forbidden_kuai_kuai_offering,
     is_green_kuai_kuai_offering,
     is_prayer_pose_active,
+    is_ritual_music_accepted,
     post_kismet_event,
     prayer_pose_status,
+    ritual_music_status,
     wait_for_prayer_pose,
 )
 
@@ -61,6 +63,11 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
             "latestKuaiKuaiDetected": True,
             "latestKuaiKuaiColor": "green",
             "latestKuaiKuaiConfidence": 0.78,
+            "ritualMusic": {
+                "accepted": True,
+                "reason": "matched ritual song: Queen - Don't Stop Me Now",
+                "matchedRule": "Queen - Don't Stop Me Now",
+            },
             "camera": {
                 "authorizationStatus": "authorized",
                 "devices": [{"localizedName": "FaceTime HD Camera"}],
@@ -73,6 +80,7 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
     assert "impact 0.44" in omen
     assert "prayer pose 0.88" in omen
     assert "Kuai Kuai green 0.78" in omen
+    assert "ritual music Queen - Don't Stop Me Now" in omen
     assert "camera devices 1" in omen
     assert "camera authorized" in omen
 
@@ -122,6 +130,24 @@ def test_green_kuai_kuai_opens_ritual_gate_without_prayer_pose():
     assert is_prayer_pose_active(snapshot) is True
 
 
+def test_ritual_music_opens_ritual_gate_without_camera():
+    snapshot = {
+        "latestPrayerPoseActive": False,
+        "latestPrayerPoseConfidence": 0.0,
+        "latestPrayerPoseHandCount": 0,
+        "ritualMusic": {
+            "accepted": True,
+            "reason": "matched ritual song: Darude - Sandstorm",
+            "matchedRule": "Darude - Sandstorm",
+        },
+    }
+
+    assert is_ritual_music_accepted(snapshot) is True
+    assert is_prayer_pose_active(snapshot) is True
+    assert ritual_music_status(snapshot) == "matched ritual song: Darude - Sandstorm"
+    assert prayer_pose_status(snapshot) == "matched ritual song: Darude - Sandstorm"
+
+
 def test_non_green_kuai_kuai_is_forbidden():
     snapshot = {
         "latestKuaiKuaiDetected": True,
@@ -169,6 +195,22 @@ def test_wait_for_prayer_pose_accepts_green_kuai_kuai():
     }
     with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
         assert wait_for_prayer_pose(timeout=0) == (True, "green Kuai Kuai offering confirmed", snapshot)
+
+
+def test_wait_for_prayer_pose_accepts_ritual_music():
+    snapshot = {
+        "ritualMusic": {
+            "accepted": True,
+            "reason": "matched ritual song: Rick Astley - Never Gonna Give You Up",
+            "matchedRule": "Rick Astley - Never Gonna Give You Up",
+        }
+    }
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", return_value=snapshot):
+        assert wait_for_prayer_pose(timeout=0) == (
+            True,
+            "matched ritual song: Rick Astley - Never Gonna Give You Up",
+            snapshot,
+        )
 
 
 def test_wait_for_prayer_pose_immediately_blocks_forbidden_kuai_kuai():
