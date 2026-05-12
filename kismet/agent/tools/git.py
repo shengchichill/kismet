@@ -25,6 +25,7 @@ class GitTool:
             cwd=self.cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env=env,
         )
         if check and result.returncode != 0:
@@ -45,6 +46,7 @@ class GitTool:
             cwd=self.cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         parent_sha = parent_result.stdout.strip() if parent_result.returncode == 0 else None
 
