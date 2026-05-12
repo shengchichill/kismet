@@ -524,12 +524,22 @@ class RendererTool:
     def show_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
         total_tokens = session.total_input_tokens + session.total_output_tokens
-        candle_art = Text.from_markup(
-            f"[{MUTED}]~  ~  ~  ~  ~  ~  ~[/]\n"
-            f"[{GOLD}]| | | | | | | | | |[/]\n"
-            f"[{GOLD}]_|_|_|_|_|_|_|_|_|__[/]\n"
-            f"[{GOLD}]|   🕯  祈福壇  🕯    |[/]\n"
-            f"[{GOLD}]|____________________|[/]"
+        scroll_art = Text.from_markup(
+            f"[{GOLD}]╔══╦═══════════════════════════╦══╗[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ☰ ☱ ☲ ☳ ☴ ☵ ☶ ☷  [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ─────────────────────────[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║  ✦    奉  天  承  運  ✦   ║  ║[/]\n"
+            f"[{GOLD}]║  ║                           ║  ║[/]\n"
+            f"[{GOLD}]║  ║  🙏  祈  福  法  壇  🙏   ║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]        ☯    ☰    ☯       [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║  業  力  化  解  進  行   ║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ─────────────────────────[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ☷ ☶ ☵ ☴ ☳ ☲ ☱ ☰  [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╚══╩═══════════════════════════╩══╝[/]"
         )
         stats = Text.from_markup(
             f"[{PURPLE}]◈ 總消耗：[/{PURPLE}][{CYAN}]{total_tokens:,} tokens  {cost_str} 💸[/]\n"
@@ -537,7 +547,7 @@ class RendererTool:
             f"[{GOLD}]◈ 強行提交，聽天由命...[/]"
         )
         panel = Panel(
-            Group(Align.center(candle_art), Text(""), stats),
+            Group(Align.center(scroll_art), Text(""), stats),
             title=f"[{GOLD}]🙏 祈福儀式（改運 {session.mine_attempts} 次）🙏[/]",
             border_style=GOLD,
             expand=False,
