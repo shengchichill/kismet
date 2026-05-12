@@ -225,7 +225,6 @@ class RendererTool:
             cards_a = [("░░░░░", "░░░░░", PURPLE), ("░░░░░", "░░░░░", PURPLE), ("     ", "     ", MUTED)]
             text = Text.from_markup(
                 f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]\n\n"
-                + _tarot_card_row(cards_a)
                 + f"\n\n[{MUTED}]  hash: [{CYAN}]{hash_str}[/]   感應中 ⟳[/]"
             )
             live.update(text)
@@ -249,7 +248,6 @@ class RendererTool:
                 status_line = f"[{GREEN}]  ✦  氣場穩定[/]"
             text2 = Text.from_markup(
                 f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]\n\n"
-                + _tarot_card_row(cards_b)
                 + f"\n\n  {hash_line}\n\n"
                 + f"  {status_line}"
             )
