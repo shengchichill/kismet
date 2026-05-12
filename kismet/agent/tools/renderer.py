@@ -217,42 +217,94 @@ class RendererTool:
         lucky_match: Optional[str] = None,
         unlucky_match: Optional[str] = None,
     ) -> None:
-        has_unlucky = unlucky_match is not None
-        has_lucky = lucky_match is not None
+        from kismet.agent.tools.divine import draw_three_tarot_cards
 
-        with Live(console=self.console, refresh_per_second=4) as live:
-            # Frame A: cards dealing
-            cards_a = [("░░░░░", "░░░░░", PURPLE), ("░░░░░", "░░░░░", PURPLE), ("     ", "     ", MUTED)]
-            text = Text.from_markup(
-                f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]\n\n"
-                + f"\n\n[{MUTED}]  hash: [{CYAN}]{hash_str}[/]   感應中 ⟳[/]"
+        cards = draw_three_tarot_cards(hash_str)
+        card_data = [
+            (_TAROT_EMOJI.get(c, "✦"), _TAROT_ZH.get(c, c), pos)
+            for c, pos in cards
+        ]
+
+        header = f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]"
+        header_final = f"[{PURPLE}]  ✦ 命盤展開，天機已現 ✦[/]"
+        hash_sensing = f"  [{MUTED}]hash: [{CYAN}]{hash_str}[/]   感應中 ⟳[/]"
+
+        def spread(revealed: set[int], flipping: set[int]):
+            return _make_spread_table(card_data, revealed, flipping)
+
+        with Live(console=self.console, refresh_per_second=8) as live:
+            # F1: 星塵聚集
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                Text.from_markup(f"  [{MUTED}]· · · · · · · · · · · · · · · · ·[/]"),
+                Text(""), Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.30)
+
+            # F2: 能量浮現
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                Text.from_markup(f"  [{PURPLE}]✦ · ✦ · ✦ · ✦ · ✦ · ✦ · ✦ · ✦[/]"),
+                Text(""), Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.30)
+
+            # F3: 光芒大放
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                Text.from_markup(f"  [{GOLD}]★  ·  ★  ·  ★  ·  ★  ·  ★  ·  ★[/]"),
+                Text(""), Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.35)
+
+            # F4: 牌陣成形 (all facedown)
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                spread(set(), set()),
+                Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.40)
+
+            # F5: 能量消散 (all flipping)
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                spread(set(), {0, 1, 2}),
+                Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.40)
+
+            # F6: 第一張揭示 (過去)
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                spread({0}, {1, 2}),
+                Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.50)
+
+            # F7: 第二張揭示 (現在)
+            live.update(Group(
+                Text.from_markup(header), Text(""),
+                spread({0, 1}, {2}),
+                Text.from_markup(hash_sensing),
+            ))
+            time.sleep(0.50)
+
+            # F8: 第三張揭示 (未來) + hash 行
+            hash_display = _highlight_hash(
+                hash_str, lucky_match=lucky_match, unlucky_match=unlucky_match
             )
-            live.update(text)
-            time.sleep(1.0)
-
-            # Frame B: all revealed (this remains on screen after Live exits)
-            cards_b = [
-                ("FOOL ", "🃏   ", CYAN),
-                ("WHEEL", "☸    ", CYAN),
-                ("TOWER", "⚡💀 ", RED if has_unlucky else GOLD),
-            ]
-            hash_display = _highlight_hash(hash_str, lucky_match=lucky_match, unlucky_match=unlucky_match)
-            if has_unlucky:
+            if unlucky_match is not None:
                 hash_line = f"  hash: {hash_display}  [{RED}]⚡ 不詳！含 {unlucky_match}[/]"
-                status_line = f"[{RED}]  ⚠  水晶球異動：hash 含不詳字符[/]"
-            elif has_lucky:
+            elif lucky_match is not None:
                 hash_line = f"  hash: {hash_display}  [{GREEN}]✦ 吉兆！含 {lucky_match}[/]"
-                status_line = f"[{GREEN}]  ✦  氣場穩定，吉兆降臨[/]"
             else:
                 hash_line = f"  hash: {hash_display}"
-                status_line = f"[{GREEN}]  ✦  氣場穩定[/]"
-            text2 = Text.from_markup(
-                f"[{PURPLE}]  ✦ 命盤展開中，牌語浮現於宇宙之間... ✦[/]\n\n"
-                + f"\n\n  {hash_line}\n\n"
-                + f"  {status_line}"
-            )
-            live.update(text2)
-            time.sleep(1.2)
+            live.update(Group(
+                Text.from_markup(header_final), Text(""),
+                spread({0, 1, 2}, set()),
+                Text(""), Text.from_markup(hash_line),
+            ))
+            time.sleep(1.00)
 
     @contextmanager
     def divination_spinner(self, hash_str: str):

@@ -57,3 +57,24 @@ def test_make_spread_table_renders_without_error():
     ]:
         table = _make_spread_table(card_data, revealed, flipping)
         console.print(table)
+
+
+from unittest.mock import patch
+
+
+@patch("kismet.agent.tools.renderer.time.sleep")
+def test_show_divination_animation_8_frames(mock_sleep):
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_divination_animation("bf44a92cafe2f8", lucky_match="cafe")
+    assert mock_sleep.call_count == 8
+
+
+@patch("kismet.agent.tools.renderer.time.sleep")
+def test_show_divination_animation_unlucky(mock_sleep):
+    from kismet.agent.tools.renderer import RendererTool
+    renderer = RendererTool()
+    renderer.console = _make_console()
+    renderer.show_divination_animation("3f7a404deadbeef", unlucky_match="dead")
+    assert mock_sleep.call_count == 8
