@@ -14,7 +14,7 @@
 
 > 一本正經胡說八道。
 
-KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–100), then offers to "exorcise" bad luck by rephrasing your commit message until the SHA contains an auspicious pattern — `888`, `168`, palindromes, ascending sequences. Commits with full ASCII altar ceremony.
+KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–100), then offers to "exorcise" bad luck by rephrasing your commit message until the SHA contains an auspicious pattern — `888`, `168`, palindromes, ascending sequences. Commits with full 道教法陣 scroll ceremony.
 
 ---
 
@@ -22,8 +22,9 @@ KISMET divines the karmic fortune of your git commit hash via LLM (K-value 0–1
 
 - **占卜 (Divination)** — LLM reads your diff, predicts the commit hash, draws a tarot card, and assigns a K-value
 - **逆天改運 (Mining)** — Rephrases your commit message in a loop until the hash contains a lucky string, using pure-Python SHA1 (no git subprocess in hot loop)
-- **雙手祈禱 / 綠色乖乖改運 (MacSensorAgent required by default)** — During mining, confirms a two-hand prayer pose or green Kuai Kuai offering before every hash attempt. Non-green Kuai Kuai immediately terminates mining because the machine spirits have boundaries.
-- **驅魔 (Exorcism)** — Force-commit with ritual ASCII art, no questions asked
+- **雙手祈禱 / 綠色乖乖改運 (MacSensorAgent required by default)** — During mining, confirms an accepted ritual gate before every hash attempt.
+- **祈福儀式 (Blessing)** — 符籙卷軸式 ASCII scroll with 八卦 rows, shown after mining ends before final commit
+- **驅魔儀式 (Exorcism)** — Same scroll design in blood red; shown on force-commit with a one-line warning above
 - **下蠱 (Curse)** — Reverse mode: mine for an *unlucky* hash
 - **Fixed-timestamp commits** — Predicted hash always matches actual commit hash via `GIT_COMMITTER_DATE`
 - **Token cost tracking** — Input/output tokens tracked separately, cost computed from `model_costs.yml`

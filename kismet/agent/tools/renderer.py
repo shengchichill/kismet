@@ -7,6 +7,7 @@ from typing import Optional
 from rich.align import Align
 from rich.console import Console, Group
 from rich.live import Live
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.status import Status
 from rich.table import Table
@@ -550,44 +551,61 @@ class RendererTool:
     def show_blessing(self, session) -> None:
         cost_str = f"${session.total_cost_usd:.4f} USD" if session.total_cost_usd is not None else "(cost unknown)"
         total_tokens = session.total_input_tokens + session.total_output_tokens
-        candle_art = Text.from_markup(
-            f"[{MUTED}]~  ~  ~  ~  ~  ~  ~[/]\n"
-            f"[{GOLD}]| | | | | | | | | |[/]\n"
-            f"[{GOLD}]_|_|_|_|_|_|_|_|_|__[/]\n"
-            f"[{GOLD}]|   🕯  祈福壇  🕯    |[/]\n"
-            f"[{GOLD}]|____________________|[/]"
+        scroll_art = Text.from_markup(
+            f"[{GOLD}]╔══╦═══════════════════════════╦══╗[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]      ☰ ☱ ☲ ☳ ☴ ☵ ☶ ☷      [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ─────────────────────────[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║  ✦    奉  天  承  運  ✦   ║  ║[/]\n"
+            f"[{GOLD}]║  ║                           ║  ║[/]\n"
+            f"[{GOLD}]║  ║  🙏  祈  福  法  壇  🙏   ║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]        ☯    ☰    ☯        [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║  業  力  化  解  進  行   ║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]  ─────────────────────────[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]      ☷ ☶ ☵ ☴ ☳ ☲ ☱ ☰      [/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{GOLD}]║  ║[/][{PURPLE}]▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[/][{GOLD}]║  ║[/]\n"
+            f"[{GOLD}]╚══╩═══════════════════════════╩══╝[/]"
         )
         stats = Text.from_markup(
             f"[{PURPLE}]◈ 總消耗：[/{PURPLE}][{CYAN}]{total_tokens:,} tokens  {cost_str} 💸[/]\n"
             f"[{MUTED}]◈ 花錢消災，功德圓滿[/]\n"
             f"[{GOLD}]◈ 強行提交，聽天由命...[/]"
         )
-        panel = Panel(
-            Group(Align.center(candle_art), Text(""), stats),
+        self.console.print()
+        self.console.print(Padding(scroll_art, (0, 0, 0, 3)))
+        self.console.print()
+        self.console.print(Panel(
+            stats,
             title=f"[{GOLD}]🙏 祈福儀式（改運 {session.mine_attempts} 次）🙏[/]",
             border_style=GOLD,
             expand=False,
-        )
-        self.console.print()
-        self.console.print(Align.center(panel))
+        ))
 
     def show_exorcism(self) -> None:
+        DARK_RED = "#7f1d1d"
         art = Text.from_markup(
-            f"[{RED}]符 咒 驅 魔 儀 式 開 始\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"☠  厄  運  解  除  ☠\n"
-            f"/|\\ 驅  除  不  詳  /|\\\n"
-            f"/ | \\ 宇  宙  平  衡 / | \\\n\n"
-            f"「雖違宇宙法則，誠意已達，特此驅魔。」[/]"
-        )
-        panel = Panel(
-            Align.center(art),
-            title=f"[{RED}]⚡ 警告：強行打破宇宙平衡 ⚡[/]",
-            border_style=RED,
-            expand=False,
+            f"[{RED}]╔══╦═══════════════════════════╦══╗[/]\n"
+            f"[{RED}]║  ║[/][{DARK_RED}]███████████████████████████[/][{RED}]║  ║[/]\n"
+            f"[{RED}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{RED}]║  ║      ☰ ☱ ☲ ☳ ☴ ☵ ☶ ☷      ║  ║[/]\n"
+            f"[{RED}]║  ║  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔║  ║[/]\n"
+            f"[{RED}]║  ║  ☠    凶  咒  解  除  ☠   ║  ║[/]\n"
+            f"[{RED}]║  ║                           ║  ║[/]\n"
+            f"[{RED}]║  ║  ⚡   驅  魔  法  壇  ⚡  ║  ║[/]\n"
+            f"[{RED}]║  ║        ☠    ☳    ☠        ║  ║[/]\n"
+            f"[{RED}]║  ║  厄  運  消  散  進  行   ║  ║[/]\n"
+            f"[{RED}]║  ║  ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔║  ║[/]\n"
+            f"[{RED}]║  ║      ☷ ☶ ☵ ☴ ☳ ☲ ☱ ☰      ║  ║[/]\n"
+            f"[{RED}]╠══╬═══════════════════════════╬══╣[/]\n"
+            f"[{RED}]║  ║[/][{DARK_RED}]███████████████████████████[/][{RED}]║  ║[/]\n"
+            f"[{RED}]╚══╩═══════════════════════════╩══╝[/]"
         )
         self.console.print()
-        self.console.print(Align.center(panel))
+        self.console.print(f"  [{RED}]⚡ 警告：強行打破宇宙平衡 ⚡[/]")
+        self.console.print()
+        self.console.print(Padding(art, (0, 0, 0, 3)))
         self.console.print()
 
     def show_celebration(self) -> None:
