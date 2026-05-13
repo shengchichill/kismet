@@ -4,6 +4,7 @@ import json
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -13,15 +14,31 @@ def _base_url() -> str:
     return os.environ.get("MAC_SENSOR_AGENT_BASE_URL", f"http://127.0.0.1:{port}")
 
 
-def get_sensor_snapshot(timeout: float = 0.15) -> dict[str, Any]:
+def get_sensor_snapshot(
+    timeout: float = 0.15,
+    *,
+    spotify_ritual: bool = False,
+    spotify_trigger_id: str | None = None,
+) -> dict[str, Any]:
     """Fetch MacSensorAgent's local sensor snapshot.
 
     The integration is fail-open: if MacSensorAgent is not running, KISMET
     mining continues normally without waiting on sensors.
     """
     url = os.environ.get("MAC_SENSOR_AGENT_SNAPSHOT_URL", f"{_base_url()}/snapshot")
+    headers: dict[str, str] = {}
+    if spotify_ritual:
+        query = {"spotifyRitual": "1"}
+        if spotify_trigger_id:
+            query["spotifyTriggerId"] = spotify_trigger_id
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}{urllib.parse.urlencode(query)}"
+        control_token = os.environ.get("MAC_SENSOR_AGENT_CONTROL_TOKEN")
+        if control_token:
+            headers["X-Mac-Sensor-Control-Token"] = control_token
+    request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             if response.status != 200:
                 return {}
             return json.loads(response.read().decode("utf-8"))
@@ -182,12 +199,20 @@ def wait_for_prayer_pose(
     timeout: float,
     poll_interval: float = 0.25,
     snapshot_timeout: float = 0.75,
+    spotify_trigger_id: str | None = None,
 ) -> tuple[bool, str, dict[str, Any]]:
     """Poll MacSensorAgent until the user is holding a two-hand prayer pose."""
     deadline = time.monotonic() + max(0, timeout)
     last_snapshot: dict[str, Any] = {}
+    spotify_attempted = False
     while True:
-        snapshot = get_sensor_snapshot(timeout=snapshot_timeout)
+        should_trigger_spotify = spotify_trigger_id is not None and not spotify_attempted
+        snapshot = get_sensor_snapshot(
+            timeout=max(snapshot_timeout, 5.0) if should_trigger_spotify else snapshot_timeout,
+            spotify_ritual=should_trigger_spotify,
+            spotify_trigger_id=spotify_trigger_id,
+        )
+        spotify_attempted = spotify_attempted or should_trigger_spotify
         if snapshot:
             last_snapshot = snapshot
             if is_ritual_spell_accepted(snapshot):
@@ -245,6 +270,16 @@ def format_mining_omen(snapshot: dict[str, Any]) -> str:
     if isinstance(ritual_spell, dict) and ritual_spell.get("accepted") is True:
         phrase = ritual_spell.get("phrase")
         parts.append(f"ritual spell {phrase if isinstance(phrase, str) else 'accepted'}")
+
+    spotify_control = snapshot.get("spotifyControl")
+    if isinstance(spotify_control, dict):
+        spotify_status = spotify_control.get("status")
+        track_name = spotify_control.get("trackName")
+        if isinstance(spotify_status, str) and spotify_status not in {"idle", ""}:
+            if isinstance(track_name, str) and track_name:
+                parts.append(f"spotify {spotify_status} {track_name}")
+            else:
+                parts.append(f"spotify {spotify_status}")
 
     camera = snapshot.get("camera") if isinstance(snapshot.get("camera"), dict) else {}
     devices = camera.get("devices") if isinstance(camera, dict) else []

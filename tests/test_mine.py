@@ -346,3 +346,9 @@ def test_mine_checks_prayer_pose_before_each_attempt():
 
     assert result.status is MineStatus.SUCCESS
     assert wait_for_prayer_pose.call_count == 2
+    assert wait_for_prayer_pose.call_args_list[0].kwargs["spotify_trigger_id"] == (
+        f"{session.original_predicted_hash}:{session.tree_sha}:mine"
+    )
+    assert wait_for_prayer_pose.call_args_list[1].kwargs["spotify_trigger_id"] == (
+        f"{session.original_predicted_hash}:{session.tree_sha}:mine"
+    )

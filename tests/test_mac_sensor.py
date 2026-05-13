@@ -32,6 +32,24 @@ def test_get_sensor_snapshot_parses_json():
         assert get_sensor_snapshot() == {"latestTrackpadPressure": 0.7}
 
 
+def test_get_sensor_snapshot_can_request_spotify_ritual(monkeypatch):
+    response = MagicMock()
+    response.status = 200
+    response.read.return_value = json.dumps({"spotifyControl": {"status": "playing"}}).encode()
+    response.__enter__.return_value = response
+    monkeypatch.setenv("MAC_SENSOR_AGENT_CONTROL_TOKEN", "ritual-token")
+
+    with patch("urllib.request.urlopen", return_value=response) as urlopen:
+        assert get_sensor_snapshot(spotify_ritual=True, spotify_trigger_id="session:1") == {
+            "spotifyControl": {"status": "playing"}
+        }
+
+    request = urlopen.call_args.args[0]
+    assert "spotifyRitual=1" in request.full_url
+    assert "spotifyTriggerId=session%3A1" in request.full_url
+    assert request.headers["X-mac-sensor-control-token"] == "ritual-token"
+
+
 def test_post_kismet_event_sends_json_payload():
     response = MagicMock()
     response.close.return_value = None
@@ -75,6 +93,10 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
                 "phrase": "kismet open",
                 "reason": "recognized ritual spell: kismet open",
             },
+            "spotifyControl": {
+                "status": "playing",
+                "trackName": "Queen - Don't Stop Me Now",
+            },
             "camera": {
                 "authorizationStatus": "authorized",
                 "devices": [{"localizedName": "FaceTime HD Camera"}],
@@ -89,6 +111,7 @@ def test_format_mining_omen_includes_sensor_and_camera_metadata():
     assert "Kuai Kuai green 0.78" in omen
     assert "ritual music Queen - Don't Stop Me Now" in omen
     assert "ritual spell kismet open" in omen
+    assert "spotify playing Queen - Don't Stop Me Now" in omen
     assert "camera devices 1" in omen
     assert "camera authorized" in omen
 
@@ -310,3 +333,34 @@ def test_wait_for_prayer_pose_keeps_last_non_empty_snapshot_for_timeout_reason()
     assert ok is False
     assert snapshot == snapshots[0]
     assert "hands=1" in reason
+
+
+def test_wait_for_prayer_pose_triggers_spotify_once():
+    snapshots = [
+        {},
+        {
+            "latestPrayerPoseActive": True,
+            "latestPrayerPoseConfidence": 0.9,
+            "latestPrayerPoseHandCount": 2,
+        },
+    ]
+    with patch("kismet.agent.tools.mac_sensor.get_sensor_snapshot", side_effect=snapshots) as get_snapshot:
+        ok, reason, snapshot = wait_for_prayer_pose(
+            timeout=0.01,
+            poll_interval=0,
+            spotify_trigger_id="session:1",
+        )
+
+    assert ok is True
+    assert reason == "prayer pose confirmed"
+    assert snapshot == snapshots[1]
+    assert get_snapshot.call_args_list[0].kwargs == {
+        "timeout": 5.0,
+        "spotify_ritual": True,
+        "spotify_trigger_id": "session:1",
+    }
+    assert get_snapshot.call_args_list[1].kwargs == {
+        "timeout": 0.75,
+        "spotify_ritual": False,
+        "spotify_trigger_id": "session:1",
+    }

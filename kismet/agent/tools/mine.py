@@ -301,12 +301,16 @@ class MinerTool:
             f"target={', '.join(targets) if targets else 'default'} max={max_attempts}",
             hash=session.predicted_hash,
         )
+        spotify_trigger_id = f"{session.original_predicted_hash or session.predicted_hash}:{session.tree_sha}:mine"
         try:
             for attempt in range(1, max_attempts + 1):
                 prayer_snapshot = None
                 if self.config.require_prayer_pose:
                     renderer.show_prayer_pose_wait(attempt, max_attempts)
-                    ok, reason, prayer_snapshot = wait_for_prayer_pose(self.config.prayer_pose_timeout_seconds)
+                    ok, reason, prayer_snapshot = wait_for_prayer_pose(
+                        self.config.prayer_pose_timeout_seconds,
+                        spotify_trigger_id=spotify_trigger_id,
+                    )
                     if not ok:
                         status = MineStatus.BLOCKED
                         post_kismet_event("MiningBlocked", reason, attempt=attempt, max_attempts=max_attempts)
